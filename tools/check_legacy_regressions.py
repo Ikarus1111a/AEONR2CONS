@@ -6,6 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SINC = (ROOT / "data/languages/aeonR2.sinc").read_text()
+TEST = (ROOT / "src/test/java/aeon/AeonAddressAnalyzerTest.java").read_text()
 GEN = (ROOT / "tools/gen_sleigh.py").read_text()
 CAL = json.loads((ROOT / "isa/calibration.json").read_text())
 ISA = json.loads((ROOT / "isa/aeon_isa.json").read_text())["aeon_aeonR2_isa"]
@@ -161,8 +162,11 @@ for mnemonic in ("amul", "amac", "amsb", "amulu", "amacu", "amsbu",
     require("g_cc_7_8!=0" in constructors[2] and "g_cc_7_8!=1" in constructors[2] and
             "g_c_7_8" in constructors[2] and "aeon_" in constructors[2],
             f"{mnemonic} preserves reserved-selector fallback")
-    require("amac0lo = 1:4" in constructors[0] and "amac1lo = 1:4" in constructors[1],
-            f"{mnemonic} diagnostic constructors write only their selected accumulator")
+    require("amac0lo = RD_g_A_16_20" in constructors[0] and
+            "amac1lo = RD_g_A_16_20" in constructors[1] and
+            "amac0hi = RD_g_B_11_15" in constructors[0] and
+            "amac1hi = RD_g_B_11_15" in constructors[1],
+            f"{mnemonic} reads both GPR operands and writes only its selected accumulator")
 require("define bitrange AMAC_ENABLE" not in COMMON and
         "local cfg_half:4 = amac_cfg s/ 2:4" not in GEN and
         "local cfg_even:4 = cfg_half * 2:4" not in GEN and "SPLIT[_name]" in GEN and
@@ -172,7 +176,7 @@ require("local cfg_half:4 = amac_cfg s/ 2:4" not in SINC and
         "local cfg_even:4 = cfg_half * 2:4" not in SINC and
         "g_cc_7_8=(7,8)" in SINC and
         ' "a0"' in SINC and ' "a1"' in SINC,
-        "diagnostic AMAC output uses constant writes to isolate decode from arithmetic")
+        "diagnostic AMAC output copies two GPR operands to selected accumulator registers")
 require("macAccumulatorsImplementWordAndHalfwordProducts" in TEST,
         "AMAC semantics have numerical emulator tests")
 

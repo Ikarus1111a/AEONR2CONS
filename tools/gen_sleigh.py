@@ -389,10 +389,10 @@ SPLIT = {
 }
 
 def mac_accumulator_semantics(name, mode, signedness, part, accumulator):
-    """Diagnostic-only constant write to isolate AMAC instruction decoding."""
+    """Diagnostic-only pass-through writes to isolate register operand reads."""
     low = f"amac{accumulator}lo"
     high = f"amac{accumulator}hi"
-    return f"{low} = 1:4; {high} = 0:4;"
+    return f"{low} = {{A}}; {high} = {{B}};"
 
 MAC_OPERATIONS = {
     'bg.amul': ["set","signed","word"],
