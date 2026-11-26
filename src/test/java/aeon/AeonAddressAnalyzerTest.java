@@ -389,11 +389,13 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 			try {
 				b.createMemory("ram", CODE, 0x10000);
 				b.createMemory("spr", "spr:0", 0x200);
-				byte[][] instructions = new byte[96][];
+				byte[][] instructions = new byte[192][];
 				for (int i = 0; i < 48; i++) {
 					int spr = 32 + i;
 					instructions[i * 2] = sprImmediate(true, 3, spr);
 					instructions[i * 2 + 1] = sprImmediate(false, 4, spr);
+					instructions[96 + i * 2] = sprRegister(true, 3, 5, 0);
+					instructions[96 + i * 2 + 1] = sprRegister(false, 4, 3, 0);
 				}
 				b.setBytes(CODE, concatenate(instructions));
 				EmulatorHelper emu = new EmulatorHelper(b.getProgram());
@@ -402,11 +404,22 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 					for (int i = 0; i < 48; i++) {
 						long value = (0xA5000000L | (i * 0x10101L)) & 0xffffffffL;
 						emu.writeRegister("r3", value);
-						assertTrue("mtspr exception bank index " + (32 + i) + " failed for " + language,
+						assertTrue("immediate mtspr index " + (32 + i) + " failed for " + language,
 							emu.step(TaskMonitor.DUMMY));
-						assertTrue("mfspr exception bank index " + (32 + i) + " failed for " + language,
+						assertTrue("immediate mfspr index " + (32 + i) + " failed for " + language,
 							emu.step(TaskMonitor.DUMMY));
-						assertEquals("SPR readback index " + (32 + i) + " for " + language,
+						assertEquals("immediate SPR readback index " + (32 + i) + " for " + language,
+							value, emu.readRegister("r4").longValue() & 0xffffffffL);
+					}
+					for (int i = 0; i < 48; i++) {
+						long value = (0x5A000000L | (i * 0x10203L)) & 0xffffffffL;
+						emu.writeRegister("r3", 32 + i);
+						emu.writeRegister("r5", value);
+						assertTrue("register mtspr index " + (32 + i) + " failed for " + language,
+							emu.step(TaskMonitor.DUMMY));
+						assertTrue("register mfspr index " + (32 + i) + " failed for " + language,
+							emu.step(TaskMonitor.DUMMY));
+						assertEquals("register SPR readback index " + (32 + i) + " for " + language,
 							value, emu.readRegister("r4").longValue() & 0xffffffffL);
 					}
 				}
@@ -583,6 +596,14 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 				b.dispose();
 			}
 		}
+	}
+
+	private static byte[] sprRegister(boolean write, int sprRegister, int valueRegister, int offset) {
+		int opcode = write ? 0xD : 0xF;
+		int word = (0x30 << 26) | (valueRegister << 21) | (sprRegister << 16) |
+			((offset & 0xfff) << 4) | opcode;
+		return bytes((word >>> 24) & 0xff, (word >>> 16) & 0xff,
+			(word >>> 8) & 0xff, word & 0xff);
 	}
 
 	private static byte[] sprImmediate(boolean write, int register, int spr) {
