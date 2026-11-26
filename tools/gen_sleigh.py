@@ -255,17 +255,21 @@ SEMANTICS = {
     # SPR 17 is the architectural supervision register. Keep it as a real
     # register so F/CY/OV bit ranges stay coherent with mfspr/mtspr.
     'bg.mtspr':  ('local n:4 = {A} + {PIPE}; local addr:4 = n * 4; '
-                  'if (n == 17:4) { sr = {B}; } '
-                  'else { *[spr]:4 (addr) = {B}; }'),
+                  'if (n == 17:4) goto <write_sr>; '
+                  '*[spr]:4 (addr) = {B}; goto <write_done>; '
+                  '<write_sr> sr = {B}; <write_done>'),
     'bg.mfspr':  ('local n:4 = {A} + {PIPE}; local addr:4 = n * 4; '
-                  'if (n == 17:4) { {Dw} = sr; } '
-                  'else { {Dw} = *[spr]:4 (addr); }'),
+                  'if (n == 17:4) goto <read_sr>; '
+                  '{Dw} = *[spr]:4 (addr); goto <read_done>; '
+                  '<read_sr> {Dw} = sr; <read_done>'),
     'bg.mtspr1': ('local n:4 = {U}; local addr:4 = n * 4; '
-                  'if (n == 17:4) { sr = {B}; } '
-                  'else { *[spr]:4 (addr) = {B}; }'),
+                  'if (n == 17:4) goto <write_sr>; '
+                  '*[spr]:4 (addr) = {B}; goto <write_done>; '
+                  '<write_sr> sr = {B}; <write_done>'),
     'bg.mfspr1': ('local n:4 = {U}; local addr:4 = n * 4; '
-                  'if (n == 17:4) { {Dw} = sr; } '
-                  'else { {Dw} = *[spr]:4 (addr); }'),
+                  'if (n == 17:4) goto <read_sr>; '
+                  '{Dw} = *[spr]:4 (addr); goto <read_done>; '
+                  '<read_sr> {Dw} = sr; <read_done>'),
     # rD is hardwired to 0 here, and the simulator shows no architectural
     # effect, so this is a load whose result is discarded. Modelling it as a
     # load rather than a pseudo-op is what gives it a data reference.
