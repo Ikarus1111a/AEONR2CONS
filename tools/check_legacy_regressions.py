@@ -139,6 +139,27 @@ for mnemonic in (":b.mul ", ":b.mulu ", ":b.muli "):
             f"{mnemonic.strip()} writes low and high halves")
 require("CID=sr[28,4]" in COMMON, "SR context-ID bits are represented")
 
+# MStar SDK codec fallbacks define word and signed halfword AMAC behavior.
+for mnemonic in ("bg.amul", "bg.amac", "bg.amsb", "bg.amulu", "bg.amacu", "bg.amsbu", "bg.amul_lh", "bg.amac_lh", "bg.amsb_lh", "bg.amul_hh", "bg.amac_hh", "bg.amsb_hh"):
+    require(f"'{mnemonic}':" in GEN and mnemonic in GEN[GEN.index("MAC_OPERATIONS = {"):GEN.index("for _name,")],
+            f"generator has native AMAC semantic for {mnemonic}")
+for index, name in ((10249, "amac0lo"), (10250, "amac0hi"),
+                    (10251, "amac1lo"), (10252, "amac1hi"),
+                    (10253, "amac_cfg")):
+    require(name in COMMON and f"n == {index}:4" in SINC and name in SINC,
+            f"AMAC SPR {index:#06x} is routed to {name}")
+for mnemonic in ("amul", "amac", "amsb", "amulu", "amacu", "amsbu",
+                 "amul_lh", "amac_lh", "amsb_lh", "amul_hh", "amac_hh", "amsb_hh"):
+    constructors = [line for line in SINC.splitlines() if line.startswith(f":b.{mnemonic} ")]
+    require(len(constructors) == 3, f"{mnemonic} has a0/a1 plus an opaque reserved-selector constructor")
+    require("amac0lo" in constructors[0] and "amac1lo" in constructors[1],
+            f"{mnemonic} updates the selected accumulator")
+    require("aeon_" in constructors[2], f"{mnemonic} preserves c=2/3 fallback")
+require("AMAC_ENABLE" in COMMON and "AMAC_ENABLE == 0" in GEN,
+        "AMAC enable bit gates modeled arithmetic")
+require("macAccumulatorsImplementWordAndHalfwordProducts" in TEST,
+        "AMAC semantics have numerical emulator tests")
+
 # The basic SIMD bitwise operations use native p-code across 128-bit vectors.
 for mnemonic, expression in (("mv.and", " & "), ("mv.or", " | "), ("mv.xor", " ^ ")):
     require(f"'{mnemonic}':" in GEN, f"generator defines native {mnemonic}")

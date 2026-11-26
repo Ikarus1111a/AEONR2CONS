@@ -120,7 +120,10 @@ def spr_access_semantics(write, immediate):
     operation = "write" if write else "read"
     lines = [f"local n:4 = {n_expr};", "local addr:4 = n * 4;"]
     named = [(17, "sr"), (10241, "maclo"), (10242, "machi"),
-             (10243, "machi2"), (10248, "mulhi")]
+             (10243, "machi2"), (10248, "mulhi"),
+             (10249, "amac0lo"), (10250, "amac0hi"),
+             (10251, "amac1lo"), (10252, "amac1hi"),
+             (10253, "amac_cfg")]
     for base, prefix in ((32, "epcr"), (48, "eear"), (64, "esr")):
         named.extend((base + i, f"{prefix}{i}") for i in range(16))
     for index, name in named:
@@ -385,6 +388,62 @@ SPLIT = {
                  ('f', 1, 'local off:4 = {F} * 4; {QMw} = *:4 (r1 + off);')],
 }
 
+def mac_accumulator_semantics(name, mode, signedness, part, accumulator):
+    """Native P-code for one of the two MStar AMAC accumulators."""
+    low = f"amac{accumulator}lo"
+    high = f"amac{accumulator}hi"
+    extend = "sext" if signedness == "signed" else "zext"
+    if part == "low16":
+        rhs = f"{extend}({{B}}[0,16]:2)"
+    elif part == "high16":
+        rhs = f"{extend}({{B}}[16,16]:2)"
+    else:
+        rhs = f"{extend}({{B}}:4)"
+    lhs = f"{extend}({{A}}:4)"
+    fallback = f"aeon_{name.split('.', 1)[1]}({{A}}, {{B}}, {{c}}:4);"
+    if mode == "set":
+        update = f"{low} = product[0,4]; {high} = product[4,4];"
+    else:
+        operator = "+" if mode == "add" else "-"
+        update = (
+            f"local accumulator:8 = (zext({high}:4) << 32) | zext({low}:4); "
+            f"accumulator = accumulator {operator} product; "
+            f"{low} = accumulator[0,4]; {high} = accumulator[4,4];"
+        )
+    return (
+        "if (AMAC_ENABLE == 0) goto <mac_disabled>; "
+        f"local product:8 = {lhs} * {rhs}; {update} goto <mac_done>; "
+        f"<mac_disabled> {fallback} "
+        "<mac_done> local join:1 = 0;"
+    )
+
+
+MAC_OPERATIONS = {
+    'bg.amul': ["set","signed","word"],
+    'bg.amac': ["add","signed","word"],
+    'bg.amsb': ["sub","signed","word"],
+    'bg.amulu': ["set","unsigned","word"],
+    'bg.amacu': ["add","unsigned","word"],
+    'bg.amsbu': ["sub","unsigned","word"],
+    'bg.amul_lh': ["set","signed","low16"],
+    'bg.amac_lh': ["add","signed","low16"],
+    'bg.amsb_lh': ["sub","signed","low16"],
+    'bg.amul_hh': ["set","signed","high16"],
+    'bg.amac_hh': ["add","signed","high16"],
+    'bg.amsb_hh': ["sub","signed","high16"],
+}
+for _name, (_mode, _signedness, _part) in MAC_OPERATIONS.items():
+    # The SDK exposes selectors a0/a1. Leave selector encodings 2/3 on
+    # the existing opaque path until their physical mapping is established.
+    SPLIT[_name] = [
+        ('c', 0, mac_accumulator_semantics(_name, _mode, _signedness, _part, 0)),
+        ('c', 1, mac_accumulator_semantics(_name, _mode, _signedness, _part, 1)),
+        (None, None, None),
+    ]
+
+
+
+
 DEST_LETTERS = set('D?Z')
 
 # bn.mlwz / bn.msw move a run of consecutive registers to or from memory. The
@@ -612,9 +671,10 @@ class Gen:
                 if letter is not None:
                     cons.append(f'{self.dup_field(enc, letter, pos[letter])}={value}')
                 elif name in SPLIT:
-                    # the general case must exclude the specific one
-                    sl, sv, _ = SPLIT[name][0]
-                    cons.append(f'{self.dup_field(enc, sl, pos[sl])}!={sv}')
+                    # Exclude all selector values that have native constructors.
+                    for sl, sv, _ in SPLIT[name]:
+                        if sl is not None:
+                            cons.append(f'{self.dup_field(enc, sl, pos[sl])}!={sv}')
                 binds = [d for d, _ in symbols.values()]
                 self.ctors.append(self.emit_ctor(name, mnem, disp, cons,
                                                  extra + binds, symbols, sem,

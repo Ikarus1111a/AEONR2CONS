@@ -651,6 +651,77 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 		}
 	}
 
+	/** Signed/unsigned word products and signed halfword products in the AMAC unit. */
+	@Test
+	public void macAccumulatorsImplementWordAndHalfwordProducts() throws Exception {
+		BigInteger mask64 = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE);
+		for (String language : List.of(BE, LE, HARVARD)) {
+			ProgramBuilder pb = new ProgramBuilder("aeon-mac-arithmetic", language, this);
+			try {
+				pb.createMemory("ram", CODE, 0x1000);
+				pb.setBytes(CODE, concatenate(
+					macInstruction(0, 3, 4, 0x48), macInstruction(0, 3, 4, 0x58),
+					macInstruction(0, 3, 4, 0x68),
+					macInstruction(1, 3, 4, 0x4f), macInstruction(1, 3, 4, 0x5f),
+					macInstruction(1, 3, 4, 0x6f),
+					macInstruction(1, 3, 4, 0x4e), macInstruction(1, 3, 4, 0x5e),
+					macInstruction(1, 3, 4, 0x6e),
+					macInstruction(0, 3, 4, 0x49), macInstruction(0, 3, 4, 0x59),
+					macInstruction(0, 3, 4, 0x69)
+				));
+				EmulatorHelper emu = new EmulatorHelper(pb.getProgram());
+				try {
+					emu.writeRegister("amac_cfg", 1L);
+					emu.writeRegister("pc", 0x20000);
+					emu.writeRegister("r3", 7L); emu.writeRegister("r4", -9L);
+					assertTrue(emu.step(TaskMonitor.DUMMY));
+					emu.writeRegister("r3", -11L); emu.writeRegister("r4", 13L);
+					assertTrue(emu.step(TaskMonitor.DUMMY));
+					emu.writeRegister("r3", 17L); emu.writeRegister("r4", 5L);
+					assertTrue(emu.step(TaskMonitor.DUMMY));
+					assertEquals(BigInteger.valueOf(-291).and(mask64),
+						readMacAccumulator(emu, "amac0lo", "amac0hi"));
+					emu.writeRegister("r3", 7L); emu.writeRegister("r4", 0x0000fffdL);
+					assertTrue(emu.step(TaskMonitor.DUMMY));
+					emu.writeRegister("r3", 2L); emu.writeRegister("r4", 0x0000fffcL);
+					assertTrue(emu.step(TaskMonitor.DUMMY));
+					emu.writeRegister("r3", -3L); emu.writeRegister("r4", 2L);
+					assertTrue(emu.step(TaskMonitor.DUMMY));
+					emu.writeRegister("r3", 5L); emu.writeRegister("r4", 0xfffe0000L);
+					assertTrue(emu.step(TaskMonitor.DUMMY));
+					emu.writeRegister("r3", 7L); emu.writeRegister("r4", 0x00030000L);
+					assertTrue(emu.step(TaskMonitor.DUMMY));
+					emu.writeRegister("r3", -4L); emu.writeRegister("r4", 0x00020000L);
+					assertTrue(emu.step(TaskMonitor.DUMMY));
+					assertEquals(BigInteger.valueOf(19), readMacAccumulator(emu, "amac1lo", "amac1hi"));
+					emu.writeRegister("r3", -1L); emu.writeRegister("r4", 2L);
+					assertTrue(emu.step(TaskMonitor.DUMMY));
+					emu.writeRegister("r3", 3L); emu.writeRegister("r4", 5L);
+					assertTrue(emu.step(TaskMonitor.DUMMY));
+					emu.writeRegister("r3", 2L); emu.writeRegister("r4", 3L);
+					assertTrue(emu.step(TaskMonitor.DUMMY));
+					assertEquals(new BigInteger("200000007", 16),
+						readMacAccumulator(emu, "amac0lo", "amac0hi").and(mask64));
+				}
+				finally { emu.dispose(); }
+			}
+			finally { pb.dispose(); }
+		}
+	}
+
+	private static byte[] macInstruction(int accumulator, int aRegister, int bRegister, int function) {
+		int word = (0x2f << 26) | (aRegister << 16) | (bRegister << 11) |
+			(accumulator << 7) | (function & 0x7f);
+		return bytes((word >>> 24) & 0xff, (word >>> 16) & 0xff,
+			(word >>> 8) & 0xff, word & 0xff);
+	}
+
+	private static BigInteger readMacAccumulator(EmulatorHelper emu, String low, String high) throws Exception {
+		BigInteger mask32 = BigInteger.ONE.shiftLeft(32).subtract(BigInteger.ONE);
+		return emu.readRegister(high).and(mask32).shiftLeft(32)
+			.or(emu.readRegister(low).and(mask32));
+	}
+
 	private static byte[] vectorLogical(int destination, int left, int right, int subOpcode) {
 		int word = (0x2c << 26) | (destination << 21) | (left << 16) |
 			(right << 11) | (subOpcode & 0x3f);

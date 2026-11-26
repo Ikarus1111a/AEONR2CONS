@@ -37,6 +37,12 @@ define register offset=0x198 size=4 [
   esr0 esr1 esr2 esr3 esr4 esr5 esr6 esr7
   esr8 esr9 esr10 esr11 esr12 esr13 esr14 esr15
 ];
+# MStar AMAC state: a0 low/high at SPR 0x2809/0x280a, a1 low/high
+# at SPR 0x280b/0x280c, and AMACCFG at SPR 0x280d.
+define register offset=0x1d8 size=4 [
+  amac0lo amac0hi amac1lo amac1hi amac_cfg
+];
+define bitrange AMAC_ENABLE = amac_cfg[0,1];
 # OpenRISC-compatible Supervision Register fields. Defining these as bit ranges
 # (rather than independent registers) keeps explicit SPR_SR reads/writes,
 # exception restores, compares and carry chains on the same architectural state.
