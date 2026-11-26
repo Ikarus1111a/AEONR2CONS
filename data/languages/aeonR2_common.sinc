@@ -19,9 +19,14 @@ define register offset=0x000 size=4 [
   r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31
 ];
 define register offset=0x100 size=4 [ pc sr ];
-# Condition flag and carry are standalone registers, never bit-fields of sr,
-# so compare-and-branch reaches the decompiler one p-code op deep.
-define register offset=0x120 size=1 [ F CY ];
+# OpenRISC-compatible Supervision Register fields. Defining these as bit ranges
+# (rather than independent registers) keeps explicit SPR_SR reads/writes,
+# exception restores, compares and carry chains on the same architectural state.
+define bitrange SM=sr[0,1] TEE=sr[1,1] IEE=sr[2,1] DCE=sr[3,1]
+                ICE=sr[4,1] DME=sr[5,1] IME=sr[6,1] LEE=sr[7,1]
+                CE=sr[8,1] F=sr[9,1] CY=sr[10,1] OV=sr[11,1]
+                OVE=sr[12,1] DSX=sr[13,1] EPH=sr[14,1] FO=sr[15,1]
+                SUMRA=sr[16,1];
 define register offset=0x200 size=16 [
   v0  v1  v2  v3  v4  v5  v6  v7  v8  v9  v10 v11 v12 v13 v14 v15
   v16 v17 v18 v19 v20 v21 v22 v23 v24 v25 v26 v27 v28 v29 v30 v31
