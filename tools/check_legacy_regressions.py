@@ -158,6 +158,8 @@ for mnemonic in ("amul", "amac", "amsb", "amulu", "amacu", "amsbu",
 require("define bitrange AMAC_ENABLE = amac_cfg[0,1];" in COMMON and
         "amac_cfg & 1:4" in GEN and "AMAC_ENABLE ==" not in GEN,
         "AMAC enable bit gates modeled arithmetic with width-safe 32-bit masking")
+require("amac_cfg & 1:4" in SINC and "AMAC_ENABLE ==" not in SINC,
+        "generated AMAC constructors use the width-safe enable guard")
 require("macAccumulatorsImplementWordAndHalfwordProducts" in TEST,
         "AMAC semantics have numerical emulator tests")
 
