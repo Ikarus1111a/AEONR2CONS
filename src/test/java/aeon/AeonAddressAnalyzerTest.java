@@ -263,18 +263,22 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 			try {
 				b.createMemory("ram", CODE, 0x1000);
 				b.createMemory("spr", "spr:0", 0x200);
-				// bt.rfe (instruction encoding is big-endian in every AEON language).
-				b.setBytes(CODE, bytes(0x84, 0x00));
 				int savedPc = 0x20100;
 				int savedSr = 0x00000600;
-				boolean little = !language.equals(BE);
-				b.setBytes("spr:0x80", wordBytes(savedPc, little));   // EPCR0
-				b.setBytes("spr:0x100", wordBytes(savedSr, little)); // ESR0
+				// Populate the exception registers through mtspr, then execute RFE.
+				b.setBytes(CODE, concatenate(
+					sprImmediate(true, 3, 32),  // EPCR0 = r3
+					sprImmediate(true, 4, 64),  // ESR0 = r4
+					bytes(0x84, 0x00)));         // bt.rfe
 				Program p = b.getProgram();
 				EmulatorHelper emu = new EmulatorHelper(p);
 				try {
 					emu.writeRegister("sr", 0);
+					emu.writeRegister("r3", savedPc);
+					emu.writeRegister("r4", savedSr);
 					emu.writeRegister("pc", 0x20000);
+					assertTrue("EPCR0 mtspr failed for " + language, emu.step(TaskMonitor.DUMMY));
+					assertTrue("ESR0 mtspr failed for " + language, emu.step(TaskMonitor.DUMMY));
 					assertTrue("rfe failed for " + language, emu.step(TaskMonitor.DUMMY));
 					assertEquals("restored PC for " + language, savedPc,
 						emu.getExecutionAddress().getOffset());
@@ -376,6 +380,45 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 		}
 	}
 
+
+	/** The MStar SYS SPR banks are architectural registers shared by SPR access and RFE. */
+	@Test
+	public void exceptionSprBanksAreNamedArchitecturalState() throws Exception {
+		for (String language : List.of(BE, LE, HARVARD)) {
+			ProgramBuilder b = new ProgramBuilder("aeon-exception-sprs", language, this);
+			try {
+				b.createMemory("ram", CODE, 0x10000);
+				b.createMemory("spr", "spr:0", 0x200);
+				byte[][] instructions = new byte[96][];
+				for (int i = 0; i < 48; i++) {
+					int spr = 32 + i;
+					instructions[i * 2] = sprImmediate(true, 3, spr);
+					instructions[i * 2 + 1] = sprImmediate(false, 4, spr);
+				}
+				b.setBytes(CODE, concatenate(instructions));
+				EmulatorHelper emu = new EmulatorHelper(b.getProgram());
+				try {
+					emu.writeRegister("pc", 0x20000);
+					for (int i = 0; i < 48; i++) {
+						long value = (0xA5000000L | (i * 0x10101L)) & 0xffffffffL;
+						emu.writeRegister("r3", value);
+						assertTrue("mtspr exception bank index " + (32 + i) + " failed for " + language,
+							emu.step(TaskMonitor.DUMMY));
+						assertTrue("mfspr exception bank index " + (32 + i) + " failed for " + language,
+							emu.step(TaskMonitor.DUMMY));
+						assertEquals("SPR readback index " + (32 + i) + " for " + language,
+							value, emu.readRegister("r4").longValue() & 0xffffffffL);
+					}
+				}
+				finally {
+					emu.dispose();
+				}
+			}
+			finally {
+				b.dispose();
+			}
+		}
+	}
 
 	/** MStar names the three saved MAC words in its AEON R2 SPR header and vector save/restore code. */
 	@Test

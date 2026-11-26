@@ -59,3 +59,24 @@ not silently added as aliases here.
 `bn.entri F,V` saves `F` registers beginning at `r9`, allocates a frame of `F+V` words, and updates `r1`. `bn.rtnei F,V` restores those registers and releases the same frame. The semantics unroll the maximum fifteen possible register saves/restores, so Ghidra sees individual stack accesses and register definitions instead of opaque user-ops.
 
 The paired layout currently encoded here stores r(9+i) at old_sp - 4*(i+1) and restores it from new_sp + 4*(F+V-i-1). Those addresses are mathematical inverses for any F and V. This deliberately differs from the current Reko ENTRI emitter's apparent save-slot convention. The Ghidra emulator tests verify internal round-trip consistency, not the silicon's precise save-slot convention. A vendor-simulator differential test is still required before calling the stack layout hardware-confirmed.
+
+
+## Named system exception-register banks
+
+MStar's system SPR header defines three contiguous 16-entry banks:
+
+| Bank | SPR indices | Architectural purpose |
+|---|---:|---|
+| EPCR | 32–47 | Exception program counters |
+| EEAR | 48–63 | Exception effective addresses |
+| ESR | 64–79 | Saved exception status registers |
+
+These are represented as named Ghidra register varnodes (`epcr0..epcr15`,
+`eear0..eear15`, `esr0..esr15`). Immediate and register-indexed SPR accesses
+route to the corresponding varnode, while unknown SPR indices continue to use
+the generic `spr` address space. `bt.rfe` reads `epcr0` and `esr0` directly,
+so exception return and explicit SPR reads/writes share the same modeled state.
+
+The register names and index ranges are defined by MStar's public RISC32 SPR
+header. This does not emulate exception-entry hardware, nested-exception policy,
+interrupt arbitration, or automatic updates to EEAR/EPCR/ESR on a fault.
