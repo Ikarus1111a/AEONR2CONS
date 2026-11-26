@@ -76,7 +76,7 @@
         <register name="r23"/> <register name="r24"/> <register name="r25"/>
         <register name="r26"/> <register name="r27"/> <register name="r28"/>
         <register name="r29"/> <register name="r30"/> <register name="r31"/>
-        <register name="F"/> <register name="CY"/> <register name="OV"/>
+        <register name="sr"/>
       </killedbycall>
     </prototype>
   </default_proto>
