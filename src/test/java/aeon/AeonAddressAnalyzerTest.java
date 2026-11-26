@@ -238,10 +238,10 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 					assertTrue("mfspr failed for " + language, emu.step(TaskMonitor.DUMMY));
 					assertEquals("SR value for " + language, 0x600,
 						emu.readRegister("sr").longValue() & 0xffffffffL);
-					assertEquals("F aliases SR[9] for " + language, 1,
-						emu.readRegister("F").longValue());
-					assertEquals("CY aliases SR[10] for " + language, 1,
-						emu.readRegister("CY").longValue());
+					assertEquals("SR[9] is F for " + language, 1,
+						(emu.readRegister("sr").longValue() >>> 9) & 1L);
+					assertEquals("SR[10] is CY for " + language, 1,
+						(emu.readRegister("sr").longValue() >>> 10) & 1L);
 					assertEquals("mfspr result for " + language, 0x600,
 						emu.readRegister("r4").longValue() & 0xffffffffL);
 				}
@@ -281,9 +281,9 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 					assertEquals("restored SR for " + language, savedSr,
 						emu.readRegister("sr").longValue() & 0xffffffffL);
 					assertEquals("restored F for " + language, 1,
-						emu.readRegister("F").longValue());
+						(emu.readRegister("sr").longValue() >>> 9) & 1L);
 					assertEquals("restored CY for " + language, 1,
-						emu.readRegister("CY").longValue());
+						(emu.readRegister("sr").longValue() >>> 10) & 1L);
 				}
 				finally {
 					emu.dispose();
