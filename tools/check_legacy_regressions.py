@@ -156,10 +156,10 @@ for mnemonic in ("amul", "amac", "amsb", "amulu", "amacu", "amsbu",
             f"{mnemonic} updates the selected accumulator")
     require("aeon_" in constructors[2], f"{mnemonic} preserves c=2/3 fallback")
 require("define bitrange AMAC_ENABLE" not in COMMON and
-        "local amac_enable:4 = amac_cfg & 1:4" in GEN and
+        "local amac_enable:4 = amac_cfg % 2:4" in GEN and
         "amac_enable == 0:4" in GEN,
-        "AMAC enable test uses an explicitly four-byte mask result")
-require("local amac_enable:4 = amac_cfg & 1:4" in SINC and
+        "AMAC enable test uses unsigned modulo two to inspect bit zero")
+require("local amac_enable:4 = amac_cfg % 2:4" in SINC and
         "amac_enable == 0:4" in SINC,
         "generated AMAC constructors preserve the explicit four-byte mask")
 require("macAccumulatorsImplementWordAndHalfwordProducts" in TEST,
