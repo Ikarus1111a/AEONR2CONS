@@ -238,8 +238,8 @@ SEMANTICS = {
     # Measured in aeon-elf-sim: b.rfe jumps to the address in SPR 0x20, the
     # OpenRISC EPCR. Writing a target there and stepping through the rfe lands
     # on it exactly; SPR 0x30 has no effect.
-    'bt.rfe':    ('local addr:4 = 0x80; local epc:4 = *[spr]:4 (addr); '
-                  'aeon_restore_exception_state(); return [epc];'),
+    # OpenRISC-compatible RFE: restore SR from ESR0 and return to EPCR0.
+    'bt.rfe':    'local epc:4 = *[spr]:4 (0x80); sr = *[spr]:4 (0x100); return [epc];',
     'bt.ei':     'aeon_enable_interrupts();',
     'bt.di':     'aeon_disable_interrupts();',
     'bt.wait':   'aeon_wait();',
@@ -252,10 +252,20 @@ SEMANTICS = {
     # number, and each SPR gets an address that can be named and cross
     # referenced. The census found these in all three fixtures, which is why
     # they were worth modelling. SPR n is at spr:n*4.
-    'bg.mtspr':  'local n:4 = ({A} + {PIPE}) * 4; *[spr]:4 (n) = {B};',
-    'bg.mfspr':  'local n:4 = ({A} + {PIPE}) * 4; {Dw} = *[spr]:4 (n);',
-    'bg.mtspr1': 'local n:4 = {U} * 4; *[spr]:4 (n) = {B};',
-    'bg.mfspr1': 'local n:4 = {U} * 4; {Dw} = *[spr]:4 (n);',
+    # SPR 17 is the architectural supervision register. Keep it as a real
+    # register so F/CY/OV bit ranges stay coherent with mfspr/mtspr.
+    'bg.mtspr':  ('local n:4 = {A} + {PIPE}; local addr:4 = n * 4; '
+                  'if (n == 17:4) { sr = {B}; } '
+                  'else { *[spr]:4 (addr) = {B}; }'),
+    'bg.mfspr':  ('local n:4 = {A} + {PIPE}; local addr:4 = n * 4; '
+                  'if (n == 17:4) { {Dw} = sr; } '
+                  'else { {Dw} = *[spr]:4 (addr); }'),
+    'bg.mtspr1': ('local n:4 = {U}; local addr:4 = n * 4; '
+                  'if (n == 17:4) { sr = {B}; } '
+                  'else { *[spr]:4 (addr) = {B}; }'),
+    'bg.mfspr1': ('local n:4 = {U}; local addr:4 = n * 4; '
+                  'if (n == 17:4) { {Dw} = sr; } '
+                  'else { {Dw} = *[spr]:4 (addr); }'),
     # rD is hardwired to 0 here, and the simulator shows no architectural
     # effect, so this is a load whose result is discarded. Modelling it as a
     # load rather than a pseudo-op is what gives it a data reference.
