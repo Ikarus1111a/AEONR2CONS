@@ -389,7 +389,7 @@ SPLIT = {
 }
 
 def mac_accumulator_semantics(name, mode, signedness, part, accumulator):
-    """Native P-code for one of the two MStar AMAC accumulators."""
+    """Native 64-bit AMAC multiply/accumulate semantics for one accumulator."""
     low = f"amac{accumulator}lo"
     high = f"amac{accumulator}hi"
     extend = "sext" if signedness == "signed" else "zext"
@@ -402,13 +402,13 @@ def mac_accumulator_semantics(name, mode, signedness, part, accumulator):
     lhs = f"{extend}({{A}}:4)"
     fallback = f"aeon_{name.split('.', 1)[1]}({{A}}, {{B}}, {accumulator}:4);"
     if mode == "set":
-        update = f"{low} = product[0,4]; {high} = product[4,4];"
+        update = f"{low} = product[0,32]; {high} = product[32,32];"
     else:
         operator = "+" if mode == "add" else "-"
         update = (
             f"local accumulator:8 = (zext({high}:4) << 32) | zext({low}:4); "
             f"accumulator = accumulator {operator} product; "
-            f"{low} = accumulator[0,4]; {high} = accumulator[4,4];"
+            f"{low} = accumulator[0,32]; {high} = accumulator[32,32];"
         )
     return (
         "local cfg_half:4 = amac_cfg s/ 2:4; "

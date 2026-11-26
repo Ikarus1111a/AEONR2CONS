@@ -161,10 +161,19 @@ for mnemonic in ("amul", "amac", "amsb", "amulu", "amacu", "amsbu",
     require("g_cc_7_8!=0" in constructors[2] and "g_cc_7_8!=1" in constructors[2] and
             "g_c_7_8" in constructors[2] and "aeon_" in constructors[2],
             f"{mnemonic} preserves reserved-selector fallback")
-    if mnemonic in ("amac", "amsb", "amacu", "amsbu", "amac_lh", "amsb_lh", "amac_hh", "amsb_hh"):
-        require("local accumulator:8" in constructors[0] and
-                "local accumulator:8" in constructors[1],
-                f"{mnemonic} has one 64-bit temporary per accumulator constructor")
+    for constructor in constructors[:2]:
+        require("local product:8 = " in constructor,
+                f"{mnemonic} computes an explicitly 64-bit product")
+        if mnemonic in ("amul", "amulu", "amul_lh", "amul_hh"):
+            require("product[0,32]" in constructor and "product[32,32]" in constructor,
+                    f"{mnemonic} extracts both 32-bit product words")
+        else:
+            require("local accumulator:8" in constructor and
+                    "accumulator[0,32]" in constructor and "accumulator[32,32]" in constructor,
+                    f"{mnemonic} accumulates and writes both 32-bit words")
+        require("product[0,4]" not in constructor and "product[4,4]" not in constructor and
+                "accumulator[0,4]" not in constructor and "accumulator[4,4]" not in constructor,
+                f"{mnemonic} uses no 4-bit result slices for word values")
 require("define bitrange AMAC_ENABLE" not in COMMON and
         "local cfg_half:4 = amac_cfg s/ 2:4" in GEN and
         "local cfg_even:4 = cfg_half * 2:4" in GEN and "SPLIT[_name]" in GEN and
