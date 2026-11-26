@@ -389,10 +389,13 @@ SPLIT = {
 }
 
 def mac_accumulator_semantics(name, mode, signedness, part, accumulator):
-    """Diagnostic-only pass-through writes to isolate register operand reads."""
+    """Diagnostic-only 32-bit product to isolate multiply from 64-bit arithmetic."""
     low = f"amac{accumulator}lo"
     high = f"amac{accumulator}hi"
-    return f"{low} = {{A}}; {high} = {{B}};"
+    return (
+        "local product:4 = {A} * {B}; "
+        f"{low} = product; {high} = 0:4;"
+    )
 
 MAC_OPERATIONS = {
     'bg.amul': ["set","signed","word"],
