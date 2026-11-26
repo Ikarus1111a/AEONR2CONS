@@ -152,23 +152,28 @@ for mnemonic in ("amul", "amac", "amsb", "amulu", "amacu", "amsbu",
                  "amul_lh", "amac_lh", "amsb_lh", "amul_hh", "amac_hh", "amsb_hh"):
     constructors = [line for line in SINC.splitlines() if line.startswith(f":b.{mnemonic} ")]
     require(len(constructors) == 3, f"{mnemonic} has a0/a1 plus reserved-selector constructors")
-    require("g_cc_7_8=0" in constructors[0] and "amac0lo" in constructors[0] and
-            "amac1lo" not in constructors[0], f"{mnemonic} updates AMAC0 only for selector 0")
-    require("g_cc_7_8=1" in constructors[1] and "amac1lo" in constructors[1] and
-            "amac0lo" not in constructors[1], f"{mnemonic} updates AMAC1 only for selector 1")
+    require('"a0"' in constructors[0] and "g_cc_7_8=0" in constructors[0] and
+            "g_c_7_8" not in constructors[0] and "amac0lo" in constructors[0] and
+            "amac1lo" not in constructors[0], f"{mnemonic} decodes AMAC0 without reading the selector")
+    require('"a1"' in constructors[1] and "g_cc_7_8=1" in constructors[1] and
+            "g_c_7_8" not in constructors[1] and "amac1lo" in constructors[1] and
+            "amac0lo" not in constructors[1], f"{mnemonic} decodes AMAC1 without reading the selector")
     require("g_cc_7_8!=0" in constructors[2] and "g_cc_7_8!=1" in constructors[2] and
-            "aeon_" in constructors[2], f"{mnemonic} preserves reserved-selector fallback")
+            "g_c_7_8" in constructors[2] and "aeon_" in constructors[2],
+            f"{mnemonic} preserves reserved-selector fallback")
     if mnemonic in ("amac", "amsb", "amacu", "amsbu", "amac_lh", "amsb_lh", "amac_hh", "amsb_hh"):
         require("local accumulator:8" in constructors[0] and
                 "local accumulator:8" in constructors[1],
                 f"{mnemonic} has one 64-bit temporary per accumulator constructor")
 require("define bitrange AMAC_ENABLE" not in COMMON and
         "local cfg_half:4 = amac_cfg s/ 2:4" in GEN and
-        "local cfg_even:4 = cfg_half * 2:4" in GEN and "SPLIT[_name]" in GEN,
+        "local cfg_even:4 = cfg_half * 2:4" in GEN and "SPLIT[_name]" in GEN and
+        "variant_disp = disp.replace" in GEN and "self.emit_ctor(name, mnem, variant_disp" in GEN,
         "AMAC gating uses arithmetic parity and selector dispatch is a pattern split")
 require("local cfg_half:4 = amac_cfg s/ 2:4" in SINC and
         "local cfg_even:4 = cfg_half * 2:4" in SINC and
-        "g_cc_7_8=(7,8)" in SINC,
+        "g_cc_7_8=(7,8)" in SINC and
+        ' "a0"' in SINC and ' "a1"' in SINC,
         "generated AMAC output uses arithmetic parity and a duplicated selector pattern field")
 require("macAccumulatorsImplementWordAndHalfwordProducts" in TEST,
         "AMAC semantics have numerical emulator tests")

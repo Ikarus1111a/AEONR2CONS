@@ -677,8 +677,15 @@ class Gen:
                     for sl, sv, _ in SPLIT[name]:
                         if sl is not None:
                             cons.append(f'{self.dup_field(enc, sl, pos[sl])}!={sv}')
+                # The AMAC selector is already fixed by the split pattern.
+                # Render the selected accumulator as a literal instead of
+                # reading the narrow selector field a second time in this constructor.
+                variant_disp = disp
+                if name in MAC_OPERATIONS and letter == 'c' and value in (0, 1):
+                    selector_field = symbols['c'][0]
+                    variant_disp = disp.replace(f'"a"^{selector_field}', f'"a{value}"')
                 binds = [d for d, _ in symbols.values()]
-                self.ctors.append(self.emit_ctor(name, mnem, disp, cons,
+                self.ctors.append(self.emit_ctor(name, mnem, variant_disp, cons,
                                                  extra + binds, symbols, sem,
                                                  op, order))
 
