@@ -415,7 +415,7 @@ def mac_accumulator_semantics(name, mode, signedness, part):
             "amac1lo = accumulator1[0,4]; amac1hi = accumulator1[4,4];"
         )
     return (
-        "local amac_enable:4 = amac_cfg % 2:4; "
+        "local amac_enable:4 = amac_cfg << 31:4; "
         "if (amac_enable == 0:4) goto <mac_disabled>; "
         f"local product:8 = {lhs} * {rhs}; "
         "if ({c}:4 == 0:4) goto <mac_acc0>; "

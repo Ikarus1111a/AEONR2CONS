@@ -164,11 +164,11 @@ for mnemonic in ("amul", "amac", "amsb", "amulu", "amacu", "amsbu",
             "if (g_c_7_8:4 == 1:4)" in constructors[0] and "aeon_" in constructors[0],
             f"{mnemonic} preserves a0/a1 and reserved-selector fallback")
 require("define bitrange AMAC_ENABLE" not in COMMON and
-        "local amac_enable:4 = amac_cfg % 2:4" in GEN and
+        "local amac_enable:4 = amac_cfg << 31:4" in GEN and
         "amac_enable == 0:4" in GEN and
         "SEMANTICS[_name] = mac_accumulator_semantics" in GEN and "SPLIT[_name]" not in GEN,
         "AMAC semantics use one selector-dispatch constructor")
-require("local amac_enable:4 = amac_cfg % 2:4" in SINC and
+require("local amac_enable:4 = amac_cfg << 31:4" in SINC and
         "amac_enable == 0:4" in SINC and "g_cc_7_8" not in SINC,
         "generated AMAC constructors use a single selector token field")
 require("macAccumulatorsImplementWordAndHalfwordProducts" in TEST,
