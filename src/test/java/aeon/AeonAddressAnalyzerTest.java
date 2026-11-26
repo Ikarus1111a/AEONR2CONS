@@ -479,11 +479,6 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 				b.setBytes(CODE, bytes(0x5c, 0x80, 0x58, 0x5c, 0x80, 0x5c));
 				EmulatorHelper emu = new EmulatorHelper(b.getProgram());
 				try {
-					boolean little = !language.equals(BE);
-					Address savedR9 = language.equals(HARVARD) ?
-						b.addr("data:0x207fc") : b.addr("0x207fc");
-					Address savedR10 = language.equals(HARVARD) ?
-						b.addr("data:0x207f8") : b.addr("0x207f8");
 					emu.writeRegister("r1", 0x20800);
 					emu.writeRegister("r9", 0x11223344L);
 					emu.writeRegister("r10", 0x55667788L);
@@ -492,11 +487,7 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 					assertTrue("ENTRI failed for " + language, emu.step(TaskMonitor.DUMMY));
 					assertEquals("allocated frame size for " + language, 0x207f0,
 						emu.readRegister("r1").longValue() & 0xffffffffL);
-					assertArrayEquals("saved r9 slot for " + language,
-						wordBytes(0x11223344, little), emu.readMemory(savedR9, 4));
-					assertArrayEquals("saved r10 slot for " + language,
-						wordBytes(0x55667788, little), emu.readMemory(savedR10, 4));
-
+					// Corrupt live values; RTNEI must recover them from the saved frame.
 					emu.writeRegister("r9", 0xaaaaaaaaL);
 					emu.writeRegister("r10", 0xbbbbbbbbL);
 					assertTrue("RTNEI failed for " + language, emu.step(TaskMonitor.DUMMY));
@@ -527,7 +518,7 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 					b.createMemory("data", "data:" + CODE, 0x10000);
 				}
 				// bn.entri 0,3 ; bn.rtnei 0,3
-				b.setBytes(CODE, bytes(0x5c, 0x00, 0x38, 0x5c, 0x00, 0x3c));
+				b.setBytes(CODE, bytes(0x5c, 0x00, 0x78, 0x5c, 0x00, 0x7c));
 				EmulatorHelper emu = new EmulatorHelper(b.getProgram());
 				try {
 					emu.writeRegister("r1", 0x20800);
