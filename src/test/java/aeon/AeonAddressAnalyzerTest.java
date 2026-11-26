@@ -329,9 +329,9 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 					0x75, 0xa6, 0x03, // ftoi.s r13,r6: 3.75f -> 3
 					0x78, 0x03, 0x18, // sfeqsf r3,r3
 					0x78, 0x03, 0x21, // sflesf r3,r4
-					0x78, 0x03, 0x1c, // sfnesf r3,r4
+					0x78, 0x03, 0x24, // sfnesf r3,r4
 					0x78, 0x04, 0x1d, // sfgtsf r4,r3
-					0x78, 0x03, 0x1d  // sfgtsf r3,r4 (false; must clear F)
+					0x78, 0x03, 0x25  // sfgtsf r3,r4 (false; must clear F)
 				));
 				EmulatorHelper emu = new EmulatorHelper(b.getProgram());
 				try {
