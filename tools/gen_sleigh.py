@@ -389,15 +389,27 @@ SPLIT = {
 }
 
 def mac_accumulator_semantics(name, mode, signedness, part, accumulator):
-    """Diagnostic-only extensions and subpieces to isolate 64-bit value sizing."""
+    """Native 64-bit AMAC multiply/accumulate semantics for one accumulator."""
     low = f"amac{accumulator}lo"
     high = f"amac{accumulator}hi"
     extend = "sext" if signedness == "signed" else "zext"
-    return (
-        f"local wide_a:8 = {extend}({{A}}:4); "
-        f"local wide_b:8 = {extend}({{B}}:4); "
-        f"{low} = wide_a[0,4]; {high} = wide_a[4,4];"
-    )
+    if part == "low16":
+        rhs = f"{extend}({{B}}[0,16])"
+    elif part == "high16":
+        rhs = f"{extend}({{B}}[16,16])"
+    else:
+        rhs = f"{extend}({{B}}:4)"
+    lhs = f"{extend}({{A}}:4)"
+    if mode == "set":
+        update = f"{low} = product[0,32]; {high} = product[32,32];"
+    else:
+        operator = "+" if mode == "add" else "-"
+        update = (
+            f"local accumulator:8 = (zext({high}:4) << 32) | zext({low}:4); "
+            f"accumulator = accumulator {operator} product; "
+            f"{low} = accumulator[0,32]; {high} = accumulator[32,32];"
+        )
+    return f"local product:8 = {lhs} * {rhs}; {update}"
 
 MAC_OPERATIONS = {
     'bg.amul': ["set","signed","word"],

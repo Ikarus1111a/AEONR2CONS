@@ -162,9 +162,18 @@ for mnemonic in ("amul", "amac", "amsb", "amulu", "amacu", "amsbu",
     require("g_cc_7_8!=0" in constructors[2] and "g_cc_7_8!=1" in constructors[2] and
             "g_c_7_8" in constructors[2] and "aeon_" in constructors[2],
             f"{mnemonic} preserves reserved-selector fallback")
-    require("local wide_a:8 = " in constructors[0] and "wide_a[0,4]" in constructors[0] and
-            "wide_a[4,4]" in constructors[0] and "local wide_b:8 = " in constructors[1],
-            f"{mnemonic} widens GPR operands and extracts 32-bit halves")
+    for constructor in constructors[:2]:
+        require("local product:8 = " in constructor,
+                f"{mnemonic} computes an explicitly 64-bit product")
+        if mnemonic in ("amul", "amulu", "amul_lh", "amul_hh"):
+            require("product[0,32]" in constructor and "product[32,32]" in constructor,
+                    f"{mnemonic} splits the product into 32-bit words")
+        else:
+            require("accumulator[0,32]" in constructor and "accumulator[32,32]" in constructor,
+                    f"{mnemonic} splits the updated accumulator into 32-bit words")
+        require("product[0,4]" not in constructor and "product[4,4]" not in constructor and
+                "accumulator[0,4]" not in constructor and "accumulator[4,4]" not in constructor,
+                f"{mnemonic} never uses four-bit slices for 32-bit words")
 require("define bitrange AMAC_ENABLE" not in COMMON and
         "local cfg_half:4 = amac_cfg s/ 2:4" not in GEN and
         "local cfg_even:4 = cfg_half * 2:4" not in GEN and "SPLIT[_name]" in GEN and
@@ -174,7 +183,7 @@ require("local cfg_half:4 = amac_cfg s/ 2:4" not in SINC and
         "local cfg_even:4 = cfg_half * 2:4" not in SINC and
         "g_cc_7_8=(7,8)" in SINC and
         ' "a0"' in SINC and ' "a1"' in SINC,
-        "diagnostic AMAC output copies two GPR operands to selected accumulator registers")
+        "diagnostic AMAC output models native 64-bit arithmetic with 32-bit result slices")
 require("macAccumulatorsImplementWordAndHalfwordProducts" in TEST,
         "AMAC semantics have numerical emulator tests")
 
