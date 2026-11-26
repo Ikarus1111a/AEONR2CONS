@@ -61,8 +61,7 @@ public class AeonEmuTest extends GhidraScript {
 			for (int i = 0; i < 32; i++) {
 				emu.writeRegister("r" + i, 0);
 			}
-			emu.writeRegister("F", 0);
-			emu.writeRegister("CY", 0);
+			emu.writeRegister("sr", 0);
 			emu.writeRegister("pc", CODE);
 			emu.setBreakpoint(toAddr(STOP));
 
@@ -77,8 +76,23 @@ public class AeonEmuTest extends GhidraScript {
 
 			List<String> bad = new ArrayList<>();
 			for (Map.Entry<String, Long> e : expected.entrySet()) {
-				String reg = e.getKey().equals("flag") ? "F" : e.getKey();
-				long got = emu.readRegister(reg).longValue() & 0xffffffffL;
+				String reg = e.getKey();
+				long got;
+				if (reg.equals("flag")) {
+					got = (emu.readRegister("sr").longValue() >>> 9) & 1;
+					reg = "SR.F";
+				}
+				else if (reg.equals("CY")) {
+					got = (emu.readRegister("sr").longValue() >>> 10) & 1;
+					reg = "SR.CY";
+				}
+				else if (reg.equals("OV")) {
+					got = (emu.readRegister("sr").longValue() >>> 11) & 1;
+					reg = "SR.OV";
+				}
+				else {
+					got = emu.readRegister(reg).longValue() & 0xffffffffL;
+				}
 				long want = e.getValue() & 0xffffffffL;
 				if (got != want) {
 					bad.add(String.format("%s: got %#x, vendor sim says %#x", reg, got, want));
