@@ -389,12 +389,14 @@ SPLIT = {
 }
 
 def mac_accumulator_semantics(name, mode, signedness, part, accumulator):
-    """Diagnostic-only 32-bit product to isolate multiply from 64-bit arithmetic."""
+    """Diagnostic-only extensions and subpieces to isolate 64-bit value sizing."""
     low = f"amac{accumulator}lo"
     high = f"amac{accumulator}hi"
+    extend = "sext" if signedness == "signed" else "zext"
     return (
-        "local product:4 = {A} * {B}; "
-        f"{low} = product; {high} = 0:4;"
+        f"local wide_a:8 = {extend}({{A}}:4); "
+        f"local wide_b:8 = {extend}({{B}}:4); "
+        f"{low} = wide_a[0,4]; {high} = wide_a[4,4];"
     )
 
 MAC_OPERATIONS = {

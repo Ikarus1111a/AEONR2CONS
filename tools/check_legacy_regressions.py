@@ -162,10 +162,9 @@ for mnemonic in ("amul", "amac", "amsb", "amulu", "amacu", "amsbu",
     require("g_cc_7_8!=0" in constructors[2] and "g_cc_7_8!=1" in constructors[2] and
             "g_c_7_8" in constructors[2] and "aeon_" in constructors[2],
             f"{mnemonic} preserves reserved-selector fallback")
-    require("local product:4 = RD_g_A_16_20 * RD_g_B_11_15" in constructors[0] and
-            "local product:4 = RD_g_A_16_20 * RD_g_B_11_15" in constructors[1] and
-            "amac0hi = 0:4" in constructors[0] and "amac1hi = 0:4" in constructors[1],
-            f"{mnemonic} multiplies GPR operands at 32-bit width and writes selected accumulator")
+    require("local wide_a:8 = " in constructors[0] and "wide_a[0,4]" in constructors[0] and
+            "wide_a[4,4]" in constructors[0] and "local wide_b:8 = " in constructors[1],
+            f"{mnemonic} widens GPR operands and extracts 32-bit halves")
 require("define bitrange AMAC_ENABLE" not in COMMON and
         "local cfg_half:4 = amac_cfg s/ 2:4" not in GEN and
         "local cfg_even:4 = cfg_half * 2:4" not in GEN and "SPLIT[_name]" in GEN and
