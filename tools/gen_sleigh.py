@@ -394,9 +394,9 @@ def mac_accumulator_semantics(name, mode, signedness, part, accumulator):
     high = f"amac{accumulator}hi"
     extend = "sext" if signedness == "signed" else "zext"
     if part == "low16":
-        rhs = f"{extend}({{B}}[0,16]:2)"
+        rhs = f"{extend}({{B}}[0,16])"
     elif part == "high16":
-        rhs = f"{extend}({{B}}[16,16]:2)"
+        rhs = f"{extend}({{B}}[16,16])"
     else:
         rhs = f"{extend}({{B}}:4)"
     lhs = f"{extend}({{A}}:4)"
