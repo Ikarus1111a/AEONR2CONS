@@ -410,6 +410,9 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 							emu.step(TaskMonitor.DUMMY));
 						assertEquals("immediate SPR readback index " + (32 + i) + " for " + language,
 							value, emu.readRegister("r4").longValue() & 0xffffffffL);
+						String bankName = i < 16 ? "epcr" + i : (i < 32 ? "eear" + (i - 16) : "esr" + (i - 32));
+						assertEquals("named SPR varnode " + bankName + " for " + language,
+							value, emu.readRegister(bankName).longValue() & 0xffffffffL);
 					}
 					for (int i = 0; i < 48; i++) {
 						long value = (0x5A000000L | (i * 0x10203L)) & 0xffffffffL;
@@ -421,6 +424,9 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 							emu.step(TaskMonitor.DUMMY));
 						assertEquals("register SPR readback index " + (32 + i) + " for " + language,
 							value, emu.readRegister("r4").longValue() & 0xffffffffL);
+						String bankName = i < 16 ? "epcr" + i : (i < 32 ? "eear" + (i - 16) : "esr" + (i - 32));
+						assertEquals("dynamic named SPR varnode " + bankName + " for " + language,
+							value, emu.readRegister(bankName).longValue() & 0xffffffffL);
 					}
 				}
 				finally {
