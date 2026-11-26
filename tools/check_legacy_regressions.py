@@ -156,9 +156,9 @@ for mnemonic in ("amul", "amac", "amsb", "amulu", "amacu", "amsbu",
             f"{mnemonic} updates the selected accumulator")
     require("aeon_" in constructors[2], f"{mnemonic} preserves c=2/3 fallback")
 require("define bitrange AMAC_ENABLE = amac_cfg[0,1];" in COMMON and
-        "amac_cfg & 1:4" in GEN and "AMAC_ENABLE ==" not in GEN,
+        "amac_cfg:1 & 1:1" in GEN and "AMAC_ENABLE ==" not in GEN,
         "AMAC enable bit gates modeled arithmetic with width-safe 32-bit masking")
-require("amac_cfg & 1:4" in SINC and "AMAC_ENABLE ==" not in SINC,
+require("amac_cfg:1 & 1:1" in SINC and "AMAC_ENABLE ==" not in SINC,
         "generated AMAC constructors use the width-safe enable guard")
 require("macAccumulatorsImplementWordAndHalfwordProducts" in TEST,
         "AMAC semantics have numerical emulator tests")
