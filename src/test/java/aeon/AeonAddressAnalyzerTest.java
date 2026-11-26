@@ -376,6 +376,114 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 		}
 	}
 
+
+	/** MStar names the three saved MAC words in its AEON R2 SPR header and vector save/restore code. */
+	@Test
+	public void macAccumulatorSprsAreNamedArchitecturalState() throws Exception {
+		for (String language : List.of(BE, LE, HARVARD)) {
+			ProgramBuilder b = new ProgramBuilder("aeon-mac-sprs", language, this);
+			try {
+				b.createMemory("ram", CODE, 0x1000);
+				b.createMemory("spr", "spr:0", 0xB000);
+				int[] sprs = {0x2801, 0x2802, 0x2803, 0x2808};
+				String[] names = {"maclo", "machi", "machi2", "mulhi"};
+				long[] values = {0x11223344L, 0x55667788L, 0x99aabbccL, 0xdeadc0deL};
+				byte[][] instructions = new byte[sprs.length * 2][];
+				for (int i = 0; i < sprs.length; i++) {
+					instructions[i * 2] = sprImmediate(true, 3, sprs[i]);
+					instructions[i * 2 + 1] = sprImmediate(false, 4, sprs[i]);
+				}
+				b.setBytes(CODE, concatenate(instructions));
+				EmulatorHelper emu = new EmulatorHelper(b.getProgram());
+				try {
+					emu.writeRegister("pc", 0x20000);
+					for (int i = 0; i < sprs.length; i++) {
+						emu.writeRegister("r3", values[i]);
+						assertTrue("mtspr " + names[i] + " failed for " + language,
+							emu.step(TaskMonitor.DUMMY));
+						assertTrue("mfspr " + names[i] + " failed for " + language,
+							emu.step(TaskMonitor.DUMMY));
+						assertEquals("SPR readback " + names[i] + " for " + language,
+							values[i], emu.readRegister("r4").longValue() & 0xffffffffL);
+						assertEquals("named register " + names[i] + " for " + language,
+							values[i], emu.readRegister(names[i]).longValue() & 0xffffffffL);
+					}
+				}
+				finally {
+					emu.dispose();
+				}
+			}
+			finally {
+				b.dispose();
+			}
+		}
+	}
+
+	/** AEON's full 32x32 product writes the low word to rD and the high word to SPR_MULHI. */
+	@Test
+	public void signedAndUnsignedMultiplyExposeHighWord() throws Exception {
+		for (String language : List.of(BE, LE, HARVARD)) {
+			ProgramBuilder b = new ProgramBuilder("aeon-mul-high", language, this);
+			try {
+				b.createMemory("ram", CODE, 0x1000);
+				b.createMemory("spr", "spr:0", 0xB000);
+				b.setBytes(CODE, concatenate(
+					bnMultiply(6, 3, 4, 3),
+					sprImmediate(false, 7, 0x2808),
+					bnMultiply(8, 3, 4, 2),
+					sprImmediate(false, 9, 0x2808)));
+				EmulatorHelper emu = new EmulatorHelper(b.getProgram());
+				try {
+					emu.writeRegister("r3", 0xfffffffdL); // -3 as signed, 4294967293 unsigned
+					emu.writeRegister("r4", 5);
+					emu.writeRegister("pc", 0x20000);
+					for (int i = 0; i < 4; i++) {
+						assertTrue("multiply instruction " + i + " failed for " + language,
+							emu.step(TaskMonitor.DUMMY));
+					}
+					assertEquals("signed product low word for " + language, 0xfffffff1L,
+						emu.readRegister("r6").longValue() & 0xffffffffL);
+					assertEquals("signed product high word for " + language, 0xffffffffL,
+						emu.readRegister("r7").longValue() & 0xffffffffL);
+					assertEquals("unsigned product low word for " + language, 0xfffffff1L,
+						emu.readRegister("r8").longValue() & 0xffffffffL);
+					assertEquals("unsigned product high word for " + language, 4,
+						emu.readRegister("r9").longValue() & 0xffffffffL);
+				}
+				finally {
+					emu.dispose();
+				}
+			}
+			finally {
+				b.dispose();
+			}
+		}
+	}
+
+	private static byte[] sprImmediate(boolean write, int register, int spr) {
+		int opcode = write ? 5 : 7;
+		int word = (0x30 << 26) | (register << 21) | ((spr & 0xffff) << 5) | opcode;
+		return bytes((word >>> 24) & 0xff, (word >>> 16) & 0xff,
+			(word >>> 8) & 0xff, word & 0xff);
+	}
+
+	private static byte[] bnMultiply(int destination, int left, int right, int subOpcode) {
+		int word = (0x10 << 18) | (destination << 13) | (left << 8) |
+			(right << 3) | subOpcode;
+		return bytes((word >>> 16) & 0xff, (word >>> 8) & 0xff, word & 0xff);
+	}
+
+	private static byte[] concatenate(byte[]... parts) {
+		int length = Arrays.stream(parts).mapToInt(part -> part.length).sum();
+		byte[] result = new byte[length];
+		int offset = 0;
+		for (byte[] part : parts) {
+			System.arraycopy(part, 0, result, offset, part.length);
+			offset += part.length;
+		}
+		return result;
+	}
+
 	private void build(String language, int... code) throws Exception {
 		builder = new ProgramBuilder("aeon", language, this);
 		builder.createMemory("ram", CODE, 0x10000);

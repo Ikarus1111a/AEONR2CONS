@@ -94,6 +94,22 @@ for name in ("'bn.addsf':", "'bn.subsf':", "'bn.mulsf':", "'bn.divsf':",
              "'bn.sfnesf':", "'bn.sfgtsf':"):
     require(name in GEN, f"generator defines {name.strip(chr(39)+chr(58))}")
 
+# MStar AEON R2 preserves the three 32-bit MAC words across exception entry/exit.
+for name in ("maclo", "machi", "machi2", "mulhi"):
+    require(name in COMMON, f"architectural register is named: {name}")
+for spr_number, register_name in (
+    (10241, "maclo"), (10242, "machi"), (10243, "machi2"), (10248, "mulhi")
+):
+    value = str(spr_number)
+    require(value in GEN and f"{register_name} = {{B}}" in GEN and
+            f"{{Dw}} = {register_name}" in GEN,
+            f"SPR {spr_number:#06x} aliases {register_name}")
+for mnemonic in (":b.mul ", ":b.mulu ", ":b.muli "):
+    line = next((line for line in SINC.splitlines() if line.startswith(mnemonic)), "")
+    require("product[0,32]" in line and "product[32,32]" in line and "mulhi" in line,
+            f"{mnemonic.strip()} writes low and high halves")
+require("CID=sr[28,4]" in COMMON, "SR context-ID bits are represented")
+
 # Cache/synchronization behavior is emitted as active AEON P-code operations,
 # including the operations added or refined during the legacy work.
 for name in ("aeon_flush(", "aeon_invalidate(", "aeon_flush_invalidate(",

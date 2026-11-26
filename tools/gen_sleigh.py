@@ -97,8 +97,15 @@ SEMANTICS = {
     'bn.subb':   ('local a:4 = {A}; local b:4 = {B}; local c:4 = zext(CY); '
                   'local t:4 = a - b; local b1:1 = a < b; '
                   '{Dw} = t - c; CY = b1 || (t < c);'),
-    'bn.mul':    '{Dw} = {A} * {B};',
-    'bn.mulu':   '{Dw} = {A} * {B};',
+    # The core exposes the full 64-bit product: the low word goes to rD and
+    # the high word is readable as SPR_MULHI (0x2808). This matches Reko's
+    # independent AEON rewriter and its SPR_MULHI read test.
+    'bn.mul':    ('local a:8 = sext({A}); local b:8 = sext({B}); '
+                  'local product:8 = a * b; '
+                  '{Dw} = product[0,32]; mulhi = product[32,32];'),
+    'bn.mulu':   ('local a:8 = zext({A}); local b:8 = zext({B}); '
+                  'local product:8 = a * b; '
+                  '{Dw} = product[0,32]; mulhi = product[32,32];'),
     'bn.div':    '{Dw} = {A} s/ {B};',
     'bn.divu':   '{Dw} = {A} / {B};',
     'bn.and':    '{Dw} = {A} & {B};',
@@ -118,7 +125,9 @@ SEMANTICS = {
     'bg.andi':   '{Dw} = {A} & {t};',
     'bg.ori':    '{Dw} = {A} | {t};',
     'bg.xori':   '{Dw} = {A} ^ {Y};',
-    'bg.muli':   '{Dw} = {A} * {Y};',
+    'bg.muli':   ('local a:8 = sext({A}); local b:8 = sext({Y}); '
+                  'local product:8 = a * b; '
+                  '{Dw} = product[0,32]; mulhi = product[32,32];'),
     'bg.movhi':  '{Dw} = {U} << 16;',
     'bg.abs':    'local m:4 = -zext({A} s< 0); {Dw} = (-{A} & m) | ({A} & ~m);',
     'bg.min':    'local m:4 = -zext({A} s< {B}); {Dw} = ({A} & m) | ({B} & ~m);',
@@ -262,29 +271,58 @@ SEMANTICS = {
     'bt.syncd':  'aeon_sync_dcache();',
     'bt.syncp':  'aeon_sync_pipeline();',
     'bg.syncwritebuffer': 'aeon_sync_write_buffer();',
-    # Special-purpose registers live in their own address space rather than
-    # behind a pseudo-op: the decompiler can then propagate a constant SPR
-    # number, and each SPR gets an address that can be named and cross
-    # referenced. The census found these in all three fixtures, which is why
-    # they were worth modelling. SPR n is at spr:n*4.
-    # SPR 17 is the architectural supervision register. Keep it as a real
-    # register so F/CY/OV bit ranges stay coherent with mfspr/mtspr.
+    # SPR n is addressed at spr:n*4. Model architecturally visible state
+    # as real registers so constant SPR accesses become data-flow references:
+    # SR (17), and the MStar MAC bank (0x2801..0x2803). MULHI (0x2808) is
+    # identified by the independent Reko AEON implementation.
     'bg.mtspr':  ('local n:4 = {A} + {PIPE}; local addr:4 = n * 4; '
                   'if (n == 17:4) goto <write_sr>; '
+                  'if (n == 10241:4) goto <write_maclo>; '
+                  'if (n == 10242:4) goto <write_machi>; '
+                  'if (n == 10243:4) goto <write_machi2>; '
+                  'if (n == 10248:4) goto <write_mulhi>; '
                   '*[spr]:4 (addr) = {B}; goto <write_done>; '
-                  '<write_sr> sr = {B}; <write_done> local join:1 = 0;'),
+                  '<write_sr> sr = {B}; goto <write_done>; '
+                  '<write_maclo> maclo = {B}; goto <write_done>; '
+                  '<write_machi> machi = {B}; goto <write_done>; '
+                  '<write_machi2> machi2 = {B}; goto <write_done>; '
+                  '<write_mulhi> mulhi = {B}; <write_done> local join:1 = 0;'),
     'bg.mfspr':  ('local n:4 = {A} + {PIPE}; local addr:4 = n * 4; '
                   'if (n == 17:4) goto <read_sr>; '
+                  'if (n == 10241:4) goto <read_maclo>; '
+                  'if (n == 10242:4) goto <read_machi>; '
+                  'if (n == 10243:4) goto <read_machi2>; '
+                  'if (n == 10248:4) goto <read_mulhi>; '
                   '{Dw} = *[spr]:4 (addr); goto <read_done>; '
-                  '<read_sr> {Dw} = sr; <read_done> local join:1 = 0;'),
+                  '<read_sr> {Dw} = sr; goto <read_done>; '
+                  '<read_maclo> {Dw} = maclo; goto <read_done>; '
+                  '<read_machi> {Dw} = machi; goto <read_done>; '
+                  '<read_machi2> {Dw} = machi2; goto <read_done>; '
+                  '<read_mulhi> {Dw} = mulhi; <read_done> local join:1 = 0;'),
     'bg.mtspr1': ('local n:4 = {U}; local addr:4 = n * 4; '
                   'if (n == 17:4) goto <write_sr>; '
+                  'if (n == 10241:4) goto <write_maclo>; '
+                  'if (n == 10242:4) goto <write_machi>; '
+                  'if (n == 10243:4) goto <write_machi2>; '
+                  'if (n == 10248:4) goto <write_mulhi>; '
                   '*[spr]:4 (addr) = {B}; goto <write_done>; '
-                  '<write_sr> sr = {B}; <write_done> local join:1 = 0;'),
+                  '<write_sr> sr = {B}; goto <write_done>; '
+                  '<write_maclo> maclo = {B}; goto <write_done>; '
+                  '<write_machi> machi = {B}; goto <write_done>; '
+                  '<write_machi2> machi2 = {B}; goto <write_done>; '
+                  '<write_mulhi> mulhi = {B}; <write_done> local join:1 = 0;'),
     'bg.mfspr1': ('local n:4 = {U}; local addr:4 = n * 4; '
                   'if (n == 17:4) goto <read_sr>; '
+                  'if (n == 10241:4) goto <read_maclo>; '
+                  'if (n == 10242:4) goto <read_machi>; '
+                  'if (n == 10243:4) goto <read_machi2>; '
+                  'if (n == 10248:4) goto <read_mulhi>; '
                   '{Dw} = *[spr]:4 (addr); goto <read_done>; '
-                  '<read_sr> {Dw} = sr; <read_done> local join:1 = 0;'),
+                  '<read_sr> {Dw} = sr; goto <read_done>; '
+                  '<read_maclo> {Dw} = maclo; goto <read_done>; '
+                  '<read_machi> {Dw} = machi; goto <read_done>; '
+                  '<read_machi2> {Dw} = machi2; goto <read_done>; '
+                  '<read_mulhi> {Dw} = mulhi; <read_done> local join:1 = 0;'),
     # rD is hardwired to 0 here, and the simulator shows no architectural
     # effect, so this is a load whose result is discarded. Modelling it as a
     # load rather than a pseudo-op is what gives it a data reference.
