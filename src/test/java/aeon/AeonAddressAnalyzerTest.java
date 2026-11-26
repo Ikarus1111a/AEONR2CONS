@@ -4,6 +4,7 @@ import static org.junit.Assert.*;
 
 import java.io.File;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -395,7 +396,7 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 					instructions[i * 2] = sprImmediate(true, 3, spr);
 					instructions[i * 2 + 1] = sprImmediate(false, 4, spr);
 					instructions[96 + i * 2] = sprRegister(true, 3, 5, 0);
-					instructions[96 + i * 2 + 1] = sprRegister(false, 4, 3, 0);
+					instructions[96 + i * 2 + 1] = sprRegister(false, 3, 4, 0);
 				}
 				b.setBytes(CODE, concatenate(instructions));
 				EmulatorHelper emu = new EmulatorHelper(b.getProgram());
@@ -608,6 +609,51 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 		int opcode = write ? 0xD : 0xF;
 		int word = (0x30 << 26) | (valueRegister << 21) | (sprRegister << 16) |
 			((offset & 0xfff) << 4) | opcode;
+		return bytes((word >>> 24) & 0xff, (word >>> 16) & 0xff,
+			(word >>> 8) & 0xff, word & 0xff);
+	}
+
+	/** Whole-register SIMD bitwise instructions use native 128-bit P-code. */
+	@Test
+	public void vectorLogicalOperationsUseFull128BitRegisters() throws Exception {
+		BigInteger a = new BigInteger("fedcba98765432100123456789abcdef", 16);
+		BigInteger b = new BigInteger("0ff00ff00ff00ff0fedcba9876543210", 16);
+		BigInteger mask = BigInteger.ONE.shiftLeft(128).subtract(BigInteger.ONE);
+		for (String language : List.of(BE, LE, HARVARD)) {
+			ProgramBuilder pb = new ProgramBuilder("aeon-vector-logic", language, this);
+			try {
+				pb.createMemory("ram", CODE, 0x1000);
+				pb.setBytes(CODE, concatenate(
+					vectorLogical(3, 1, 2, 2),  // mv.and v3,v1,v2
+					vectorLogical(4, 1, 2, 6),  // mv.or v4,v1,v2
+					vectorLogical(5, 1, 2, 14)  // mv.xor v5,v1,v2
+				));
+				EmulatorHelper emu = new EmulatorHelper(pb.getProgram());
+				try {
+					emu.writeRegister("v1", a);
+					emu.writeRegister("v2", b);
+					emu.writeRegister("pc", 0x20000);
+					for (int i = 0; i < 3; i++) {
+						assertTrue("vector logical instruction " + i + " failed for " + language,
+							emu.step(TaskMonitor.DUMMY));
+					}
+					assertEquals("128-bit vector AND for " + language, a.and(b), emu.readRegister("v3").and(mask));
+					assertEquals("128-bit vector OR for " + language, a.or(b), emu.readRegister("v4").and(mask));
+					assertEquals("128-bit vector XOR for " + language, a.xor(b), emu.readRegister("v5").and(mask));
+				}
+				finally {
+					emu.dispose();
+				}
+			}
+			finally {
+				pb.dispose();
+			}
+		}
+	}
+
+	private static byte[] vectorLogical(int destination, int left, int right, int subOpcode) {
+		int word = (0x2c << 26) | (destination << 21) | (left << 16) |
+			(right << 11) | (subOpcode & 0x3f);
 		return bytes((word >>> 24) & 0xff, (word >>> 16) & 0xff,
 			(word >>> 8) & 0xff, word & 0xff);
 	}

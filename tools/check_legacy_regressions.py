@@ -139,6 +139,13 @@ for mnemonic in (":b.mul ", ":b.mulu ", ":b.muli "):
             f"{mnemonic.strip()} writes low and high halves")
 require("CID=sr[28,4]" in COMMON, "SR context-ID bits are represented")
 
+# The basic SIMD bitwise operations use native p-code across 128-bit vectors.
+for mnemonic, expression in (("mv.and", " & "), ("mv.or", " | "), ("mv.xor", " ^ ")):
+    require(f"'{mnemonic}':" in GEN, f"generator defines native {mnemonic}")
+    line = next((line for line in SINC.splitlines() if line.startswith(":" + mnemonic + " ")), "")
+    require(bool(line) and expression in line and "aeon_" not in line,
+            f"{mnemonic} operates directly on vector registers")
+
 # Cache/synchronization behavior is emitted as active AEON P-code operations,
 # including the operations added or refined during the legacy work.
 for name in ("aeon_flush(", "aeon_invalidate(", "aeon_flush_invalidate(",

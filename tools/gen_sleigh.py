@@ -143,6 +143,11 @@ def spr_access_semantics(write, immediate):
 # as 0), immediates by letter id. {next} = inst_next, {this} = inst_start.
 SEMANTICS = {
     # --- moves and arithmetic -------------------------------------------
+    # Whole-vector bitwise operations are defined across all 128 bits; they
+    # do not depend on lane width or signedness.
+    'mv.and':    '{Dw} = {A} & {B};',
+    'mv.or':     '{Dw} = {A} | {B};',
+    'mv.xor':    '{Dw} = {A} ^ {B};',
     # CY: measured in aeon-elf-sim (tools/simprobe.py). add/addi/sub write it,
     # addc/subb/addic take it in and write it out, and every other instruction
     # leaves it alone — so an addc after an add must see the add's carry.
