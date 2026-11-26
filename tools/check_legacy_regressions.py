@@ -166,15 +166,15 @@ for mnemonic in ("amul", "amac", "amsb", "amulu", "amacu", "amsbu",
                 "local accumulator:8" in constructors[1],
                 f"{mnemonic} has one 64-bit temporary per accumulator constructor")
 require("define bitrange AMAC_ENABLE" not in COMMON and
-        "local cfg_half:4 = amac_cfg s/ 2:4" in GEN and
-        "local cfg_even:4 = cfg_half * 2:4" in GEN and "SPLIT[_name]" in GEN and
+        "local cfg_half:4 = amac_cfg s/ 2:4" not in GEN and
+        "local cfg_even:4 = cfg_half * 2:4" not in GEN and "SPLIT[_name]" in GEN and
         "variant_disp = disp.replace" in GEN and "self.emit_ctor(name, mnem, variant_disp" in GEN,
-        "AMAC gating uses arithmetic parity and selector dispatch is a pattern split")
-require("local cfg_half:4 = amac_cfg s/ 2:4" in SINC and
-        "local cfg_even:4 = cfg_half * 2:4" in SINC and
+        "diagnostic isolates AMAC arithmetic from the config-enable guard")
+require("local cfg_half:4 = amac_cfg s/ 2:4" not in SINC and
+        "local cfg_even:4 = cfg_half * 2:4" not in SINC and
         "g_cc_7_8=(7,8)" in SINC and
         ' "a0"' in SINC and ' "a1"' in SINC,
-        "generated AMAC output uses arithmetic parity and a duplicated selector pattern field")
+        "diagnostic AMAC output omits only the config-enable guard")
 require("macAccumulatorsImplementWordAndHalfwordProducts" in TEST,
         "AMAC semantics have numerical emulator tests")
 

@@ -411,13 +411,8 @@ def mac_accumulator_semantics(name, mode, signedness, part, accumulator):
             f"{low} = accumulator[0,4]; {high} = accumulator[4,4];"
         )
     return (
-        "local cfg_half:4 = amac_cfg s/ 2:4; "
-        "local cfg_even:4 = cfg_half * 2:4; "
-        "if (cfg_even == amac_cfg) goto <mac_disabled>; "
         f"local product:8 = {lhs} * {rhs}; "
-        f"{update} goto <mac_done>; "
-        f"<mac_disabled> {fallback} "
-        "<mac_done> local join:1 = 0;"
+        f"{update}"
     )
 
 MAC_OPERATIONS = {
