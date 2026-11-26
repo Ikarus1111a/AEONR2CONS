@@ -14,6 +14,7 @@ import org.junit.Test;
 
 import generic.jar.ResourceFile;
 import ghidra.GhidraTestApplicationLayout;
+import ghidra.app.emulator.EmulatorHelper;
 import ghidra.app.plugin.core.analysis.ConstantPropagationAnalyzer;
 import ghidra.app.util.importer.MessageLog;
 import ghidra.framework.GModule;
@@ -215,6 +216,98 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 	 * auto-analysis, AEON's analyzer included, so every reference would exist before the
 	 * test's own analyzer ran and no test could tell one analyzer from another.
 	 */
+
+	/** SPR 17 is SR: writes through mtspr must update the same bits consumed by flags. */
+	@Test
+	public void mtsprAndMfsprKeepStatusRegisterFlagsCoherent() throws Exception {
+		for (String language : List.of(BE, LE, HARVARD)) {
+			ProgramBuilder b = new ProgramBuilder("aeon-sr-spr", language, this);
+			try {
+				b.createMemory("ram", CODE, 0x1000);
+				// b.mtspri r3,17 ; b.mfspri r4,17
+				b.setBytes(CODE, bytes(
+					0xc0, 0x60, 0x02, 0x25,
+					0xc0, 0x80, 0x02, 0x27));
+				Program p = b.getProgram();
+				EmulatorHelper emu = new EmulatorHelper(p);
+				try {
+					emu.writeRegister("sr", 0);
+					emu.writeRegister("r3", 0x600);
+					emu.writeRegister("pc", 0x20000);
+					assertTrue("mtspr failed for " + language, emu.step(TaskMonitor.DUMMY));
+					assertTrue("mfspr failed for " + language, emu.step(TaskMonitor.DUMMY));
+					assertEquals("SR value for " + language, 0x600,
+						emu.readRegister("sr").longValue() & 0xffffffffL);
+					assertEquals("F aliases SR[9] for " + language, 1,
+						emu.readRegister("F").longValue());
+					assertEquals("CY aliases SR[10] for " + language, 1,
+						emu.readRegister("CY").longValue());
+					assertEquals("mfspr result for " + language, 0x600,
+						emu.readRegister("r4").longValue() & 0xffffffffL);
+				}
+				finally {
+					emu.dispose();
+				}
+			}
+			finally {
+				b.dispose();
+			}
+		}
+	}
+
+	/** RFE must restore both the saved exception PC and the complete saved SR. */
+	@Test
+	public void rfeRestoresSavedPcAndStatusRegister() throws Exception {
+		for (String language : List.of(BE, LE, HARVARD)) {
+			ProgramBuilder b = new ProgramBuilder("aeon-rfe", language, this);
+			try {
+				b.createMemory("ram", CODE, 0x1000);
+				b.createMemory("spr", "spr:0", 0x200);
+				// bt.rfe (instruction encoding is big-endian in every AEON language).
+				b.setBytes(CODE, bytes(0x84, 0x00));
+				int savedPc = 0x20100;
+				int savedSr = 0x00000600;
+				boolean little = !language.equals(BE);
+				b.setBytes("spr:0x80", wordBytes(savedPc, little));   // EPCR0
+				b.setBytes("spr:0x100", wordBytes(savedSr, little)); // ESR0
+				Program p = b.getProgram();
+				EmulatorHelper emu = new EmulatorHelper(p);
+				try {
+					emu.writeRegister("sr", 0);
+					emu.writeRegister("pc", 0x20000);
+					assertTrue("rfe failed for " + language, emu.step(TaskMonitor.DUMMY));
+					assertEquals("restored PC for " + language, savedPc,
+						emu.getExecutionAddress().getOffset());
+					assertEquals("restored SR for " + language, savedSr,
+						emu.readRegister("sr").longValue() & 0xffffffffL);
+					assertEquals("restored F for " + language, 1,
+						emu.readRegister("F").longValue());
+					assertEquals("restored CY for " + language, 1,
+						emu.readRegister("CY").longValue());
+				}
+				finally {
+					emu.dispose();
+				}
+			}
+			finally {
+				b.dispose();
+			}
+		}
+	}
+
+	private static byte[] wordBytes(int value, boolean little) {
+		if (little) {
+			return new byte[] {
+				(byte) value, (byte) (value >>> 8),
+				(byte) (value >>> 16), (byte) (value >>> 24)
+			};
+		}
+		return new byte[] {
+			(byte) (value >>> 24), (byte) (value >>> 16),
+			(byte) (value >>> 8), (byte) value
+		};
+	}
+
 	private void build(String language, int... code) throws Exception {
 		builder = new ProgramBuilder("aeon", language, this);
 		builder.createMemory("ram", CODE, 0x10000);
