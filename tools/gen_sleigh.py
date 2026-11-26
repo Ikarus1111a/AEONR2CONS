@@ -388,10 +388,8 @@ SPLIT = {
                  ('f', 1, 'local off:4 = {F} * 4; {QMw} = *:4 (r1 + off);')],
 }
 
-def mac_accumulator_semantics(name, mode, signedness, part, accumulator):
-    """Native P-code for one of the two MStar AMAC accumulators."""
-    low = f"amac{accumulator}lo"
-    high = f"amac{accumulator}hi"
+def mac_accumulator_semantics(name, mode, signedness, part):
+    """Native P-code for the two MStar AMAC accumulators, selected by a."""
     extend = "sext" if signedness == "signed" else "zext"
     if part == "low16":
         rhs = f"{extend}({{B}}[0,16])"
@@ -402,21 +400,32 @@ def mac_accumulator_semantics(name, mode, signedness, part, accumulator):
     lhs = f"{extend}({{A}}:4)"
     fallback = f"aeon_{name.split('.', 1)[1]}({{A}}, {{B}}, {{c}}:4);"
     if mode == "set":
-        update = f"{low} = product[0,4]; {high} = product[4,4];"
+        update0 = "amac0lo = product[0,4]; amac0hi = product[4,4];"
+        update1 = "amac1lo = product[0,4]; amac1hi = product[4,4];"
     else:
         operator = "+" if mode == "add" else "-"
-        update = (
-            f"local accumulator:8 = (zext({high}:4) << 32) | zext({low}:4); "
-            f"accumulator = accumulator {operator} product; "
-            f"{low} = accumulator[0,4]; {high} = accumulator[4,4];"
+        update0 = (
+            f"local accumulator0:8 = (zext(amac0hi:4) << 32) | zext(amac0lo:4); "
+            f"accumulator0 = accumulator0 {operator} product; "
+            "amac0lo = accumulator0[0,4]; amac0hi = accumulator0[4,4];"
+        )
+        update1 = (
+            f"local accumulator1:8 = (zext(amac1hi:4) << 32) | zext(amac1lo:4); "
+            f"accumulator1 = accumulator1 {operator} product; "
+            "amac1lo = accumulator1[0,4]; amac1hi = accumulator1[4,4];"
         )
     return (
-        "local amac_enable:4 = amac_cfg % 2:4; if (amac_enable == 0:4) goto <mac_disabled>; "
-        f"local product:8 = {lhs} * {rhs}; {update} goto <mac_done>; "
+        "local amac_enable:4 = amac_cfg % 2:4; "
+        "if (amac_enable == 0:4) goto <mac_disabled>; "
+        f"local product:8 = {lhs} * {rhs}; "
+        "if ({c}:4 == 0:4) goto <mac_acc0>; "
+        "if ({c}:4 == 1:4) goto <mac_acc1>; "
+        f"{fallback} goto <mac_done>; "
+        f"<mac_acc0> {update0} goto <mac_done>; "
+        f"<mac_acc1> {update1} goto <mac_done>; "
         f"<mac_disabled> {fallback} "
         "<mac_done> local join:1 = 0;"
     )
-
 
 MAC_OPERATIONS = {
     'bg.amul': ["set","signed","word"],
@@ -433,13 +442,11 @@ MAC_OPERATIONS = {
     'bg.amsb_hh': ["sub","signed","high16"],
 }
 for _name, (_mode, _signedness, _part) in MAC_OPERATIONS.items():
-    # The SDK exposes selectors a0/a1. Leave selector encodings 2/3 on
-    # the existing opaque path until their physical mapping is established.
-    SPLIT[_name] = [
-        ('c', 0, mac_accumulator_semantics(_name, _mode, _signedness, _part, 0)),
-        ('c', 1, mac_accumulator_semantics(_name, _mode, _signedness, _part, 1)),
-        (None, None, None),
-    ]
+    # Dispatch selector a0/a1 inside one semantic body. Reserved selectors
+    # retain the original opaque path without overlapping token aliases.
+    SEMANTICS[_name] = mac_accumulator_semantics(
+        _name, _mode, _signedness, _part
+    )
 
 
 

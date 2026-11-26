@@ -151,17 +151,20 @@ for index, name in ((10249, "amac0lo"), (10250, "amac0hi"),
 for mnemonic in ("amul", "amac", "amsb", "amulu", "amacu", "amsbu",
                  "amul_lh", "amac_lh", "amsb_lh", "amul_hh", "amac_hh", "amsb_hh"):
     constructors = [line for line in SINC.splitlines() if line.startswith(f":b.{mnemonic} ")]
-    require(len(constructors) == 3, f"{mnemonic} has a0/a1 plus an opaque reserved-selector constructor")
-    require("amac0lo" in constructors[0] and "amac1lo" in constructors[1],
-            f"{mnemonic} updates the selected accumulator")
-    require("aeon_" in constructors[2], f"{mnemonic} preserves c=2/3 fallback")
+    require(len(constructors) == 1, f"{mnemonic} uses one selector-dispatch constructor")
+    require("amac0lo" in constructors[0] and "amac1lo" in constructors[0],
+            f"{mnemonic} dispatches to both named accumulators")
+    require("if (g_c_7_8:4 == 0:4)" in constructors[0] and
+            "if (g_c_7_8:4 == 1:4)" in constructors[0] and "aeon_" in constructors[0],
+            f"{mnemonic} preserves a0/a1 and reserved-selector fallback")
 require("define bitrange AMAC_ENABLE" not in COMMON and
         "local amac_enable:4 = amac_cfg % 2:4" in GEN and
-        "amac_enable == 0:4" in GEN,
-        "AMAC enable test uses unsigned modulo two to inspect bit zero")
+        "amac_enable == 0:4" in GEN and
+        "SEMANTICS[_name] = mac_accumulator_semantics" in GEN and "SPLIT[_name]" not in GEN,
+        "AMAC semantics use one selector-dispatch constructor")
 require("local amac_enable:4 = amac_cfg % 2:4" in SINC and
-        "amac_enable == 0:4" in SINC,
-        "generated AMAC constructors preserve the explicit four-byte mask")
+        "amac_enable == 0:4" in SINC and "g_cc_7_8" not in SINC,
+        "generated AMAC constructors use a single selector token field")
 require("macAccumulatorsImplementWordAndHalfwordProducts" in TEST,
         "AMAC semantics have numerical emulator tests")
 
