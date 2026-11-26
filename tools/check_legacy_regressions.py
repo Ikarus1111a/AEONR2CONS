@@ -53,6 +53,75 @@ require(":b.lbz" in SINC and "zext(*[$(DATA)]:1" in SINC,
 require(":b.lbs" in SINC and "sext(*[$(DATA)]:1" in SINC,
         "signed byte loads sign-extend")
 
+# Supervision Register bit fields alias the architectural SR varnode; flags are
+# not independent state that can diverge from mfspr/mtspr or exception restore.
+COMMON = (ROOT / "data/languages/aeonR2_common.sinc").read_text()
+for bitrange in ("F=sr[9,1]", "CY=sr[10,1]", "OV=sr[11,1]", "SM=sr[0,1]"):
+    require(bitrange in COMMON, f"SR bit-range alias: {bitrange}")
+require("define register offset=0x120 size=1 [ F CY ]" not in COMMON,
+        "F/CY are no longer independent registers")
+for filename in ("aeonR2.cspec", "aeonR2le.cspec", "aeonR2le_harvard.cspec"):
+    cspec = ET.parse(ROOT / "data/languages" / filename).getroot()
+    killed = {node.attrib["name"] for node in cspec.findall(".//killedbycall/register")}
+    require("sr" in killed, f"{filename} marks SR caller-clobbered")
+    require(not ({"F", "CY", "OV"} & killed),
+            f"{filename} does not refer to non-varnode bitranges in call effects")
+for mnemonic in ("'bg.mtspr':", "'bg.mfspr':", "'bg.mtspr1':", "'bg.mfspr1':"):
+    require(mnemonic in GEN and "n == 17:4" in GEN[GEN.index(mnemonic):GEN.index(mnemonic)+500],
+            f"{mnemonic.strip(chr(39)+chr(58))} routes SPR_SR to SR")
+require("local esr_addr:4 = 0x100" in SINC and "sr = esr" in SINC and "return [epc]" in SINC,
+        "RFE restores ESR0 to SR and returns through EPCR0")
+
+
+# Scalar IEEE-754 single-precision operations must be represented by native P-code.
+for mnemonic, expression in (
+    (":b.addsf", "f+"),
+    (":b.subsf", "f-"),
+    (":b.mulsf", "f*"),
+    (":b.divsf", "f/"),
+    (":lf.itof.s", "int2float("),
+    (":lf.ftoi.s", "trunc("),
+    (":b.sfeqsf", "f=="),
+    (":b.sflesf", "f<="),
+    (":b.sfnesf", "f!="),
+    (":b.sfgtsf", "f<"),
+):
+    line = next((line for line in SINC.splitlines() if line.startswith(mnemonic + " ")), "")
+    require(bool(line) and expression in line and "aeon_" not in line,
+            f"{mnemonic} uses native floating-point semantics")
+for name in ("'bn.addsf':", "'bn.subsf':", "'bn.mulsf':", "'bn.divsf':",
+             "'bn.i2sf':", "'bn.sf2i':", "'bn.sfeqsf':", "'bn.sflesf':",
+             "'bn.sfnesf':", "'bn.sfgtsf':"):
+    require(name in GEN, f"generator defines {name.strip(chr(39)+chr(58))}")
+
+
+# ENTRI/RTNEI must model frame memory and stack-pointer effects, not opaque calls.
+for mnemonic in (":b.entri ", ":b.rtnei "):
+    line = next((line for line in SINC.splitlines() if line.startswith(mnemonic)), "")
+    require(bool(line) and "frame_words" in line and "r1 =" in line and "aeon_" not in line,
+            f"{mnemonic.strip()} models frame memory and stack-pointer effects directly")
+    require("n_F_14_17:4" in line and "n_V_5_13:4" in line,
+            f"{mnemonic.strip()} consumes both encoded frame counts")
+pcodeops = (ROOT / "data/languages/aeonR2_pcodeops.sinc").read_text()
+require("define pcodeop aeon_entri;" not in pcodeops, "ENTRI is not an opaque pseudo-op")
+require("define pcodeop aeon_rtnei;" not in pcodeops, "RTNEI is not an opaque pseudo-op")
+
+# MStar AEON R2 preserves the three 32-bit MAC words across exception entry/exit.
+for name in ("maclo", "machi", "machi2", "mulhi"):
+    require(name in COMMON, f"architectural register is named: {name}")
+for spr_number, register_name in (
+    (10241, "maclo"), (10242, "machi"), (10243, "machi2"), (10248, "mulhi")
+):
+    value = str(spr_number)
+    require(value in GEN and f"{register_name} = {{B}}" in GEN and
+            f"{{Dw}} = {register_name}" in GEN,
+            f"SPR {spr_number:#06x} aliases {register_name}")
+for mnemonic in (":b.mul ", ":b.mulu ", ":b.muli "):
+    line = next((line for line in SINC.splitlines() if line.startswith(mnemonic)), "")
+    require("product[0,32]" in line and "product[32,32]" in line and "mulhi" in line,
+            f"{mnemonic.strip()} writes low and high halves")
+require("CID=sr[28,4]" in COMMON, "SR context-ID bits are represented")
+
 # Cache/synchronization behavior is emitted as active AEON P-code operations,
 # including the operations added or refined during the legacy work.
 for name in ("aeon_flush(", "aeon_invalidate(", "aeon_flush_invalidate(",

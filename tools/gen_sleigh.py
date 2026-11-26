@@ -74,6 +74,46 @@ def field_name(enc, ch, bits):
     return f'{tokpfx(enc)}_{lid(ch)}_{lo}_{hi}', lo, hi
 
 
+
+def stack_enter_semantics():
+    """Save r9..r(8+F), allocate F+V words, with a pre-decremented save area."""
+    out = [
+        "local old_sp:4 = r1;",
+        "local frame_words:4 = n_F_14_17:4 + n_V_5_13:4;",
+    ]
+    # F is a 4-bit count, so at most fifteen registers (r9..r23).
+    # The paired RTNEI restores register i from new_sp + (F+V-i-1)*4.
+    # Therefore ENTRI stores register i at old_sp - (i+1)*4.
+    for i in range(15):
+        out.append(f"if (n_F_14_17:4 <= {i}:4) goto <enter_skip_{i}>;")
+        out.append(f"*:4 (old_sp - {4 * (i + 1)}:4) = r{9 + i};")
+        out.append(f"<enter_skip_{i}>")
+    out.extend([
+        "r1 = old_sp - (frame_words << 2);",
+        "local join:1 = 0;",
+    ])
+    return " ".join(out)
+
+
+def stack_return_semantics():
+    """Restore r9..r(8+F) from the frame and release F+V words."""
+    out = [
+        "local old_sp:4 = r1;",
+        "local frame_words:4 = n_F_14_17:4 + n_V_5_13:4;",
+    ]
+    for i in range(15):
+        out.append(f"if (n_F_14_17:4 <= {i}:4) goto <return_skip_{i}>;")
+        out.append(f"local slot_{i}:4 = frame_words - {i + 1}:4;")
+        out.append(f"local addr_{i}:4 = old_sp + (slot_{i} << 2);")
+        out.append(f"r{9 + i} = *:4 (addr_{i});")
+        out.append(f"<return_skip_{i}>")
+    out.extend([
+        "r1 = old_sp + (frame_words << 2);",
+        "local join:1 = 0;",
+    ])
+    return " ".join(out)
+
+
 # ---------------------------------------------------------------- semantics --
 # Placeholders: {Xw} write form of register letter X, {X} read form (r0 reads
 # as 0), immediates by letter id. {next} = inst_next, {this} = inst_start.
@@ -97,8 +137,15 @@ SEMANTICS = {
     'bn.subb':   ('local a:4 = {A}; local b:4 = {B}; local c:4 = zext(CY); '
                   'local t:4 = a - b; local b1:1 = a < b; '
                   '{Dw} = t - c; CY = b1 || (t < c);'),
-    'bn.mul':    '{Dw} = {A} * {B};',
-    'bn.mulu':   '{Dw} = {A} * {B};',
+    # The core exposes the full 64-bit product: the low word goes to rD and
+    # the high word is readable as SPR_MULHI (0x2808). This matches Reko's
+    # independent AEON rewriter and its SPR_MULHI read test.
+    'bn.mul':    ('local a:8 = sext({A}:4); local b:8 = sext({B}:4); '
+                  'local product:8 = a * b; '
+                  '{Dw} = product[0,32]; mulhi = product[32,32];'),
+    'bn.mulu':   ('local a:8 = zext({A}:4); local b:8 = zext({B}:4); '
+                  'local product:8 = a * b; '
+                  '{Dw} = product[0,32]; mulhi = product[32,32];'),
     'bn.div':    '{Dw} = {A} s/ {B};',
     'bn.divu':   '{Dw} = {A} / {B};',
     'bn.and':    '{Dw} = {A} & {B};',
@@ -118,7 +165,9 @@ SEMANTICS = {
     'bg.andi':   '{Dw} = {A} & {t};',
     'bg.ori':    '{Dw} = {A} | {t};',
     'bg.xori':   '{Dw} = {A} ^ {Y};',
-    'bg.muli':   '{Dw} = {A} * {Y};',
+    'bg.muli':   ('local a:8 = sext({A}:4); local b:8 = sext({Y}:2); '
+                  'local product:8 = a * b; '
+                  '{Dw} = product[0,32]; mulhi = product[32,32];'),
     'bg.movhi':  '{Dw} = {U} << 16;',
     'bg.abs':    'local m:4 = -zext({A} s< 0); {Dw} = (-{A} & m) | ({A} & ~m);',
     'bg.min':    'local m:4 = -zext({A} s< {B}); {Dw} = ({A} & m) | ({B} & ~m);',
@@ -155,6 +204,19 @@ SEMANTICS = {
     'bn.srli':   '{Dw} = {A} >> {H};',
     'bn.srai':   '{Dw} = {A} s>> {H};',
     'bn.rori':   '{Dw} = ({A} >> {H}) | ({A} << (32 - {H}));',
+    # --- scalar IEEE-754 single precision -------------------------------
+    # These are native SLEIGH floating-point operations, not opaque CALLOTHERs.
+    # FPU operands are 32-bit IEEE-754 values carried in the AEON GPR file.
+    'bn.addsf':   '{Dw} = {A} f+ {B};',
+    'bn.subsf':   '{Dw} = {A} f- {B};',
+    'bn.mulsf':   '{Dw} = {A} f* {B};',
+    'bn.divsf':   '{Dw} = {A} f/ {B};',
+    'bn.i2sf':    '{Dw} = int2float({A});',
+    'bn.sf2i':    '{Dw} = trunc({A});',
+    'bn.sfeqsf':  'F = ({A} f== {B});',
+    'bn.sflesf':  'F = ({A} f<= {B});',
+    'bn.sfnesf':  'F = ({A} f!= {B});',
+    'bn.sfgtsf':  'F = ({B} f< {A});',
     # --- compares: set the F flag ----------------------------------------
     'bn.sfeq':   'F = ({A} == {B});',
     'bn.sfne':   'F = ({A} != {B});',
@@ -231,6 +293,11 @@ SEMANTICS = {
     'bt.push':   'r1 = r1 - 4; *:4 r1 = {A};',
     'bt.pop':    '{Dw} = *:4 r1; r1 = r1 + 4;',
     # --- system ------------------------------------------------------------
+    # Function-frame instructions. F counts saved registers r9..r(8+F);
+    # V counts additional local stack words. Expand them so Ghidra sees all
+    # individual stack accesses and register definitions.
+    'bn.entri':  stack_enter_semantics(),
+    'bn.rtnei':  stack_return_semantics(),
     'bt.nop':    '',
     'bn.nop':    '',
     'bt.trap':   'aeon_trap({G}:4);',
@@ -238,8 +305,10 @@ SEMANTICS = {
     # Measured in aeon-elf-sim: b.rfe jumps to the address in SPR 0x20, the
     # OpenRISC EPCR. Writing a target there and stepping through the rfe lands
     # on it exactly; SPR 0x30 has no effect.
-    'bt.rfe':    ('local addr:4 = 0x80; local epc:4 = *[spr]:4 (addr); '
-                  'aeon_restore_exception_state(); return [epc];'),
+    # OpenRISC-compatible RFE: restore SR from ESR0 and return to EPCR0.
+    'bt.rfe':    ('local epcr_addr:4 = 0x80; local esr_addr:4 = 0x100; '
+                  'local epc:4 = *[spr]:4 (epcr_addr); '
+                  'local esr:4 = *[spr]:4 (esr_addr); sr = esr; return [epc];'),
     'bt.ei':     'aeon_enable_interrupts();',
     'bt.di':     'aeon_disable_interrupts();',
     'bt.wait':   'aeon_wait();',
@@ -247,15 +316,58 @@ SEMANTICS = {
     'bt.syncd':  'aeon_sync_dcache();',
     'bt.syncp':  'aeon_sync_pipeline();',
     'bg.syncwritebuffer': 'aeon_sync_write_buffer();',
-    # Special-purpose registers live in their own address space rather than
-    # behind a pseudo-op: the decompiler can then propagate a constant SPR
-    # number, and each SPR gets an address that can be named and cross
-    # referenced. The census found these in all three fixtures, which is why
-    # they were worth modelling. SPR n is at spr:n*4.
-    'bg.mtspr':  'local n:4 = ({A} + {PIPE}) * 4; *[spr]:4 (n) = {B};',
-    'bg.mfspr':  'local n:4 = ({A} + {PIPE}) * 4; {Dw} = *[spr]:4 (n);',
-    'bg.mtspr1': 'local n:4 = {U} * 4; *[spr]:4 (n) = {B};',
-    'bg.mfspr1': 'local n:4 = {U} * 4; {Dw} = *[spr]:4 (n);',
+    # SPR n is addressed at spr:n*4. Model architecturally visible state
+    # as real registers so constant SPR accesses become data-flow references:
+    # SR (17), and the MStar MAC bank (0x2801..0x2803). MULHI (0x2808) is
+    # identified by the independent Reko AEON implementation.
+    'bg.mtspr':  ('local n:4 = {A} + {PIPE}; local addr:4 = n * 4; '
+                  'if (n == 17:4) goto <write_sr>; '
+                  'if (n == 10241:4) goto <write_maclo>; '
+                  'if (n == 10242:4) goto <write_machi>; '
+                  'if (n == 10243:4) goto <write_machi2>; '
+                  'if (n == 10248:4) goto <write_mulhi>; '
+                  '*[spr]:4 (addr) = {B}; goto <write_done>; '
+                  '<write_sr> sr = {B}; goto <write_done>; '
+                  '<write_maclo> maclo = {B}; goto <write_done>; '
+                  '<write_machi> machi = {B}; goto <write_done>; '
+                  '<write_machi2> machi2 = {B}; goto <write_done>; '
+                  '<write_mulhi> mulhi = {B}; <write_done> local join:1 = 0;'),
+    'bg.mfspr':  ('local n:4 = {A} + {PIPE}; local addr:4 = n * 4; '
+                  'if (n == 17:4) goto <read_sr>; '
+                  'if (n == 10241:4) goto <read_maclo>; '
+                  'if (n == 10242:4) goto <read_machi>; '
+                  'if (n == 10243:4) goto <read_machi2>; '
+                  'if (n == 10248:4) goto <read_mulhi>; '
+                  '{Dw} = *[spr]:4 (addr); goto <read_done>; '
+                  '<read_sr> {Dw} = sr; goto <read_done>; '
+                  '<read_maclo> {Dw} = maclo; goto <read_done>; '
+                  '<read_machi> {Dw} = machi; goto <read_done>; '
+                  '<read_machi2> {Dw} = machi2; goto <read_done>; '
+                  '<read_mulhi> {Dw} = mulhi; <read_done> local join:1 = 0;'),
+    'bg.mtspr1': ('local n:4 = {U}; local addr:4 = n * 4; '
+                  'if (n == 17:4) goto <write_sr>; '
+                  'if (n == 10241:4) goto <write_maclo>; '
+                  'if (n == 10242:4) goto <write_machi>; '
+                  'if (n == 10243:4) goto <write_machi2>; '
+                  'if (n == 10248:4) goto <write_mulhi>; '
+                  '*[spr]:4 (addr) = {B}; goto <write_done>; '
+                  '<write_sr> sr = {B}; goto <write_done>; '
+                  '<write_maclo> maclo = {B}; goto <write_done>; '
+                  '<write_machi> machi = {B}; goto <write_done>; '
+                  '<write_machi2> machi2 = {B}; goto <write_done>; '
+                  '<write_mulhi> mulhi = {B}; <write_done> local join:1 = 0;'),
+    'bg.mfspr1': ('local n:4 = {U}; local addr:4 = n * 4; '
+                  'if (n == 17:4) goto <read_sr>; '
+                  'if (n == 10241:4) goto <read_maclo>; '
+                  'if (n == 10242:4) goto <read_machi>; '
+                  'if (n == 10243:4) goto <read_machi2>; '
+                  'if (n == 10248:4) goto <read_mulhi>; '
+                  '{Dw} = *[spr]:4 (addr); goto <read_done>; '
+                  '<read_sr> {Dw} = sr; goto <read_done>; '
+                  '<read_maclo> {Dw} = maclo; goto <read_done>; '
+                  '<read_machi> {Dw} = machi; goto <read_done>; '
+                  '<read_machi2> {Dw} = machi2; goto <read_done>; '
+                  '<read_mulhi> {Dw} = mulhi; <read_done> local join:1 = 0;'),
     # rD is hardwired to 0 here, and the simulator shows no architectural
     # effect, so this is a load whose result is discarded. Modelling it as a
     # load rather than a pseudo-op is what gives it a data reference.
