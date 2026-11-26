@@ -60,6 +60,12 @@ for bitrange in ("F=sr[9,1]", "CY=sr[10,1]", "OV=sr[11,1]", "SM=sr[0,1]"):
     require(bitrange in COMMON, f"SR bit-range alias: {bitrange}")
 require("define register offset=0x120 size=1 [ F CY ]" not in COMMON,
         "F/CY are no longer independent registers")
+for filename in ("aeonR2.cspec", "aeonR2le.cspec", "aeonR2le_harvard.cspec"):
+    cspec = ET.parse(ROOT / "data/languages" / filename).getroot()
+    killed = {node.attrib["name"] for node in cspec.findall(".//killedbycall/register")}
+    require("sr" in killed, f"{filename} marks SR caller-clobbered")
+    require(not ({"F", "CY", "OV"} & killed),
+            f"{filename} does not refer to non-varnode bitranges in call effects")
 for mnemonic in ("'bg.mtspr':", "'bg.mfspr':", "'bg.mtspr1':", "'bg.mfspr1':"):
     require(mnemonic in GEN and "n == 17:4" in GEN[GEN.index(mnemonic):GEN.index(mnemonic)+500],
             f"{mnemonic.strip(chr(39)+chr(58))} routes SPR_SR to SR")
