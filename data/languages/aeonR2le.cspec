@@ -1,5 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <compiler_spec>
+  <!-- Ported from the corrected legacy AEON ABI: natural alignment for
+       scalar data types. Eight-byte objects are four-byte aligned, matching
+       the existing ABI model rather than assuming an eight-byte boundary. -->
+  <data_organization>
+    <absolute_max_alignment value="0" />
+    <machine_alignment value="1" />
+    <default_alignment value="1" />
+    <default_pointer_alignment value="1" />
+    <pointer_size value="4" />
+    <char_type signed="false" />
+    <char_size value="1" />
+    <wchar_size value="4" />
+    <short_size value="2" />
+    <integer_size value="4" />
+    <long_size value="4" />
+    <long_long_size value="8" />
+    <float_size value="4" />
+    <double_size value="8" />
+    <long_double_size value="8" />
+    <size_alignment_map>
+      <entry size="1" alignment="1" />
+      <entry size="2" alignment="2" />
+      <entry size="4" alignment="4" />
+      <entry size="8" alignment="4" />
+    </size_alignment_map>
+  </data_organization>
   <global>
     <range space="ram"/>
   </global>

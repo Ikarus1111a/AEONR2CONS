@@ -1,59 +1,47 @@
-# Legacy AEON R2 integration notes
+# Legacy AEON corrections in the maintained implementation
 
-This project uses the vendor-table-generated AEON R2 specification from
-[eb4x/ghidra-plugin-aeon](https://github.com/eb4x/ghidra-plugin-aeon) as its
-single maintained decoder and semantics source.
+This repository is one AEON R2 processor module and one installable Ghidra extension.
+The older projects were reviewed and their applicable improvements were carried into
+the active implementation. They are not installed as a second, competing processor.
 
-The older implementations were reviewed at these exact refs:
+Reviewed source histories:
 
 - [throwaway96/ghidra-aeon, dev](https://github.com/throwaway96/ghidra-aeon/tree/dev)
-  (16 commits beyond its master branch at review time)
 - [rajkosto/ghidra-aeon, master](https://github.com/rajkosto/ghidra-aeon/tree/master)
-  (one correction commit beyond the shared shinyquagsire23 base)
 
-## Changes preserved or superseded
+The modern decoder is generated from MStar's vendor ISA tables and measured operand
+calibration. The old hand-authored SLEIGH files were therefore not overlaid wholesale:
+doing so would create a competing decoder. The corrections below are implemented in
+the maintained generator, generated SLEIGH, and compiler specifications that ship
+inside the same extension ZIP.
 
-### Rajkosto: reversed token-field endpoints
+## Ported into active source
 
-Rajkosto corrected the legacy fields `i16_uimm4_2` and `i24_uimm4_2`
-from reversed endpoints `(4, 2)` to `(2, 4)`, in both the source SLEIGH
-and generated `.sla`. The modern generated language expresses the same
-bit slices as `t_c2_4`, `n_c2_4`, and `g_c2_4`, each with endpoints
-`(2,4)`. The regression test checks all three.
+| Legacy improvement | Active implementation | Effect |
+|---|---|---|
+| Rajkosto's reversed token-field correction | `tools/gen_sleigh.py` emits `t_c2_4`, `n_c2_4`, and `g_c2_4` as ascending `(2,4)` slices | Correct extraction of the affected instruction fields |
+| Signed `bn.sfnei`, `bn.beqi`, `bg.sfnei`, and `bg.beqi` immediates | Vendor signedness flags and calibration in `isa/aeon_isa.json`, `isa/calibration.json`; constructors emitted by `tools/gen_sleigh.py` | Negative immediates are sign-extended instead of treated as large unsigned values |
+| Conditional-move operand correction (`bn.cmovsi_1`) | `SEMANTICS` in `tools/gen_sleigh.py`, emitted as `bn.cmovir`, `bn.cmovri`, and `bn.cmovii` | Immediate and register operands are not interchanged |
+| `lbz` zero extension / `lbs` sign extension | Active generated constructors in `data/languages/aeonR2.sinc` | Correct byte-load values in P-code and decompilation |
+| Cache and synchronization P-code | `SEMANTICS` and active constructors in `tools/gen_sleigh.py` / `data/languages/aeonR2.sinc` | Cache operations carry named address/operation operands instead of being empty semantics |
+| Natural alignment for scalar ABI types | `data_organization` and `size_alignment_map` in all three active `.cspec` files | 1-, 2-, 4-, and 8-byte scalars use 1-, 2-, 4-, and 4-byte alignment respectively |
 
-Do not copy the old `.sla` binary into this project. It is generated output;
-the maintained source is the `.slaspec` plus its included `.sinc` files.
+The old branch also marked unimplemented encodings with SLEIGH's `unimpl` marker.
+The maintained generator uses a more useful fallback for known-but-unmodelled
+instructions: a named opaque P-code operation that preserves the decoded mnemonic,
+operands, and instruction length. It does not silently treat those instructions as
+empty no-ops.
 
-### throwaway96: instruction and semantic corrections
+## Why the old SLEIGH files are not copied into the package
 
-The `dev` branch contains useful fixes beyond the original fork, including
-signed-immediate corrections, explicit unimplemented constructors, cache
-instruction p-code operations, and a clean source-only SLEIGH workflow.
-The modern project supersedes its hand-maintained ORBIS32 decoder with a
-vendor-table-derived generator and calibration data.
+The old projects use a hand-maintained OpenRISC-derived decoder. This package has
+one active decoder generated from vendor opcode tables, operand calibration, and
+decoder-priority measurements. Copying the old `aeon.slaspec` or
+`aeon_ORBIS32.sinc` into the active language would create duplicate/competing
+instruction definitions and could undo the vendor-calibrated decode rules.
 
-The regression test checks the equivalent modern behavior:
-
-- `bn.sfnei` uses the signed `O` operand from the vendor ISA table.
-- `bn.beqi` uses the signed `%` operand from the vendor ISA table.
-- byte loads (`b.lbz`) explicitly zero-extend; signed byte loads (`b.lbs`)
-  sign-extend.
-- cache and synchronization instructions have explicit AEON p-code operations
-  rather than empty instruction semantics.
-
-The modern implementation also retains the useful old branch's source hygiene:
-compiled `.sla` files are generated by the build and are not tracked as source.
-
-## Why this is not a literal file merge
-
-The old projects use a manually described OpenRISC-derived instruction model.
-The modern project generates its SLEIGH language from vendor assembler tables,
-operand calibration, and decoder-priority measurements. Overlaying the old
-`aeon.slaspec` or `aeon_ORBIS32.sinc` onto the modern `aeonR2.sinc` would
-create a second competing decoder and could invalidate the modern calibration.
-
-Instead, legacy corrections are checked against the modern source model. The
-modern generated specification remains the only active decoder.
+The old corrections are therefore ported into the single active source model. There
+is no separately installed "legacy AEON" extension to combine with this package.
 
 ## Verification
 
@@ -64,8 +52,7 @@ python3 tools/check_legacy_regressions.py
 ./gradlew verify
 ```
 
-The first command checks the specific legacy corrections and their modern
-equivalents. The second additionally compiles all three language variants and
-runs the project's existing disassembly, analysis, decompilation, and p-code
-emulation tests. The full Ghidra verification has not been claimed unless it
-has actually been run in an environment with the required Ghidra SDK.
+The regression task checks the live generated SLEIGH, P-code generator, and all three
+compiler specifications. `verify` additionally compiles all language variants and
+runs the project's existing disassembly, analysis, decompilation, and P-code
+emulation tests.

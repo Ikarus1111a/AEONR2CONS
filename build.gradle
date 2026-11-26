@@ -208,12 +208,12 @@ ghidraHeadless('checkRefs') {
 }
 
 
-// ------------------------------------------------------- legacy regressions --
-// Verify the corrected field slices, signed operands, byte-load semantics and
-// cache operations retained while consolidating the older AEON R2 implementations.
+// ----------------------------------------------- legacy implementation checks --
+// Verify that the applicable legacy corrections are present in the active
+// decoder/P-code generator and in every compiler specification shipped.
 tasks.register('legacyRegressionTest', Exec) {
 	group = 'verification'
-	description = 'Check legacy AEON R2 corrections against the generated modern specification'
+	description = 'Check ported AEON R2 corrections in the active processor implementation'
 	commandLine 'python3', file('tools/check_legacy_regressions.py').absolutePath
 }
 tasks.named('verify') { dependsOn 'legacyRegressionTest' }

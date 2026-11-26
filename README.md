@@ -299,8 +299,16 @@ in data gives its indirect call no target. Address data-space locations as `data
 bare number means code.
 
 
-## Consolidation provenance
+## Consolidated implementation
 
-This repository is a working consolidation of the modern vendor-table-generated AEON R2 processor module from [eb4x/ghidra-plugin-aeon](https://github.com/eb4x/ghidra-plugin-aeon), with compatibility review of [throwaway96/ghidra-aeon](https://github.com/throwaway96/ghidra-aeon/tree/dev) and [rajkosto/ghidra-aeon](https://github.com/rajkosto/ghidra-aeon).
+This is one maintained AEON R2 processor module and one installable Ghidra extension.
+The applicable corrections from [throwaway96/ghidra-aeon](https://github.com/throwaway96/ghidra-aeon/tree/dev)
+and [rajkosto/ghidra-aeon](https://github.com/rajkosto/ghidra-aeon) are carried into
+the active vendor-table-generated decoder, P-code generator, and ABI compiler specs.
+They are not shipped as a second processor or as a separate legacy extension.
 
-The legacy work is integrated as regression checks and documentation rather than by overlaying old SLEIGH files on the newer generated ISA model. See [docs/legacy-integration.md](docs/legacy-integration.md).
+The old hand-authored SLEIGH files were not overlaid because that would introduce
+competing instruction definitions. The ported fixes include the signed-immediate
+and conditional-move corrections, cache/synchronization P-code, byte-load extension,
+correct field slices, and scalar ABI alignment. The full mapping to active source
+files and its verification are documented in [docs/legacy-integration.md](docs/legacy-integration.md).
