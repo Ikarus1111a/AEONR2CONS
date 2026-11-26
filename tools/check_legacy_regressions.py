@@ -6,6 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SINC = (ROOT / "data/languages/aeonR2.sinc").read_text()
+TEST = (ROOT / "src/test/java/aeon/AeonAddressAnalyzerTest.java").read_text()
 GEN = (ROOT / "tools/gen_sleigh.py").read_text()
 CAL = json.loads((ROOT / "isa/calibration.json").read_text())
 ISA = json.loads((ROOT / "isa/aeon_isa.json").read_text())["aeon_aeonR2_isa"]
