@@ -154,6 +154,12 @@ for mnemonic in ("amul", "amac", "amsb", "amulu", "amacu", "amsbu",
     require(len(constructors) == 1, f"{mnemonic} uses one selector-dispatch constructor")
     require("amac0lo" in constructors[0] and "amac1lo" in constructors[0],
             f"{mnemonic} dispatches to both named accumulators")
+    if mnemonic in ("amac", "amsb", "amacu", "amsbu", "amac_lh", "amsb_lh", "amac_hh", "amsb_hh"):
+        require("local accumulator0:8" in constructors[0] and
+                "local accumulator1:8" in constructors[0] and
+                "accumulator0 = accumulator0" in constructors[0] and
+                "accumulator1 = accumulator1" in constructors[0],
+                f"{mnemonic} uses unique 64-bit temporaries for both accumulator branches")
     require("if (g_c_7_8:4 == 0:4)" in constructors[0] and
             "if (g_c_7_8:4 == 1:4)" in constructors[0] and "aeon_" in constructors[0],
             f"{mnemonic} preserves a0/a1 and reserved-selector fallback")
