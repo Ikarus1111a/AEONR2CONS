@@ -283,7 +283,6 @@ define pcodeop aeon_prefetch;
 define pcodeop aeon_rand;
 define pcodeop aeon_remdf;
 define pcodeop aeon_remsf;
-define pcodeop aeon_restore_exception_state;
 define pcodeop aeon_reti;
 define pcodeop aeon_rnd;
 define pcodeop aeon_rnd_b;
