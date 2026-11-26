@@ -460,6 +460,97 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 		}
 	}
 
+
+	/**
+	 * ENTRI and RTNEI are paired frame instructions. F counts saved GPRs
+	 * beginning at r9; V counts additional local stack words. Saved registers
+	 * occupy old_sp-4, old_sp-8, ... and RTNEI restores those exact locations.
+	 */
+	@Test
+	public void entriAndRtneiRoundTripRegisterFrameAcrossAllVariants() throws Exception {
+		for (String language : List.of(BE, LE, HARVARD)) {
+			ProgramBuilder b = new ProgramBuilder("aeon-frame", language, this);
+			try {
+				b.createMemory("ram", CODE, 0x10000);
+				if (language.equals(HARVARD)) {
+					b.createMemory("data", "data:" + CODE, 0x10000);
+				}
+				// Vendor encodings: bn.entri 2,2 ; bn.rtnei 2,2
+				b.setBytes(CODE, bytes(0x5c, 0x80, 0x58, 0x5c, 0x80, 0x5c));
+				EmulatorHelper emu = new EmulatorHelper(b.getProgram());
+				try {
+					boolean little = !language.equals(BE);
+					Address savedR9 = language.equals(HARVARD) ?
+						b.addr("data:0x207fc") : b.addr("0x207fc");
+					Address savedR10 = language.equals(HARVARD) ?
+						b.addr("data:0x207f8") : b.addr("0x207f8");
+					emu.writeRegister("r1", 0x20800);
+					emu.writeRegister("r9", 0x11223344L);
+					emu.writeRegister("r10", 0x55667788L);
+					emu.writeRegister("pc", 0x20000);
+
+					assertTrue("ENTRI failed for " + language, emu.step(TaskMonitor.DUMMY));
+					assertEquals("allocated frame size for " + language, 0x207f0,
+						emu.readRegister("r1").longValue() & 0xffffffffL);
+					assertArrayEquals("saved r9 slot for " + language,
+						wordBytes(0x11223344, little), emu.readMemory(savedR9, 4));
+					assertArrayEquals("saved r10 slot for " + language,
+						wordBytes(0x55667788, little), emu.readMemory(savedR10, 4));
+
+					emu.writeRegister("r9", 0xaaaaaaaaL);
+					emu.writeRegister("r10", 0xbbbbbbbbL);
+					assertTrue("RTNEI failed for " + language, emu.step(TaskMonitor.DUMMY));
+					assertEquals("restored r9 for " + language, 0x11223344L,
+						emu.readRegister("r9").longValue() & 0xffffffffL);
+					assertEquals("restored r10 for " + language, 0x55667788L,
+						emu.readRegister("r10").longValue() & 0xffffffffL);
+					assertEquals("released frame size for " + language, 0x20800,
+						emu.readRegister("r1").longValue() & 0xffffffffL);
+				}
+				finally {
+					emu.dispose();
+				}
+			}
+			finally {
+				b.dispose();
+			}
+		}
+	}
+
+	@Test
+	public void entriRtneiHandleLocalOnlyFrames() throws Exception {
+		for (String language : List.of(BE, LE, HARVARD)) {
+			ProgramBuilder b = new ProgramBuilder("aeon-frame-locals", language, this);
+			try {
+				b.createMemory("ram", CODE, 0x10000);
+				if (language.equals(HARVARD)) {
+					b.createMemory("data", "data:" + CODE, 0x10000);
+				}
+				// bn.entri 0,3 ; bn.rtnei 0,3
+				b.setBytes(CODE, bytes(0x5c, 0x00, 0x38, 0x5c, 0x00, 0x3c));
+				EmulatorHelper emu = new EmulatorHelper(b.getProgram());
+				try {
+					emu.writeRegister("r1", 0x20800);
+					emu.writeRegister("r9", 0x12345678L);
+					emu.writeRegister("r10", 0x87654321L);
+					emu.writeRegister("pc", 0x20000);
+					assertTrue("ENTRI local-only failed for " + language, emu.step(TaskMonitor.DUMMY));
+					assertEquals(0x207f4, emu.readRegister("r1").longValue() & 0xffffffffL);
+					assertTrue("RTNEI local-only failed for " + language, emu.step(TaskMonitor.DUMMY));
+					assertEquals(0x20800, emu.readRegister("r1").longValue() & 0xffffffffL);
+					assertEquals(0x12345678L, emu.readRegister("r9").longValue() & 0xffffffffL);
+					assertEquals(0x87654321L, emu.readRegister("r10").longValue() & 0xffffffffL);
+				}
+				finally {
+					emu.dispose();
+				}
+			}
+			finally {
+				b.dispose();
+			}
+		}
+	}
+
 	private static byte[] sprImmediate(boolean write, int register, int spr) {
 		int opcode = write ? 5 : 7;
 		int word = (0x30 << 26) | (register << 21) | ((spr & 0xffff) << 5) | opcode;

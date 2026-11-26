@@ -74,6 +74,46 @@ def field_name(enc, ch, bits):
     return f'{tokpfx(enc)}_{lid(ch)}_{lo}_{hi}', lo, hi
 
 
+
+def stack_enter_semantics():
+    """Save r9..r(8+F), allocate F+V words, with a pre-decremented save area."""
+    out = [
+        "local old_sp:4 = r1;",
+        "local frame_words:4 = n_F_14_17:4 + n_V_5_13:4;",
+    ]
+    # F is a 4-bit count, so at most fifteen registers (r9..r23).
+    # The paired RTNEI restores register i from new_sp + (F+V-i-1)*4.
+    # Therefore ENTRI stores register i at old_sp - (i+1)*4.
+    for i in range(15):
+        out.append(f"if (n_F_14_17:4 <= {i}:4) goto <enter_skip_{i}>;")
+        out.append(f"*:4 (old_sp - {4 * (i + 1)}:4) = r{9 + i};")
+        out.append(f"<enter_skip_{i}>")
+    out.extend([
+        "r1 = old_sp - (frame_words << 2);",
+        "local join:1 = 0;",
+    ])
+    return " ".join(out)
+
+
+def stack_return_semantics():
+    """Restore r9..r(8+F) from the frame and release F+V words."""
+    out = [
+        "local old_sp:4 = r1;",
+        "local frame_words:4 = n_F_14_17:4 + n_V_5_13:4;",
+    ]
+    for i in range(15):
+        out.append(f"if (n_F_14_17:4 <= {i}:4) goto <return_skip_{i}>;")
+        out.append(f"local slot_{i}:4 = frame_words - {i + 1}:4;")
+        out.append(f"local addr_{i}:4 = old_sp + (slot_{i} << 2);")
+        out.append(f"r{9 + i} = *:4 (addr_{i});")
+        out.append(f"<return_skip_{i}>")
+    out.extend([
+        "r1 = old_sp + (frame_words << 2);",
+        "local join:1 = 0;",
+    ])
+    return " ".join(out)
+
+
 # ---------------------------------------------------------------- semantics --
 # Placeholders: {Xw} write form of register letter X, {X} read form (r0 reads
 # as 0), immediates by letter id. {next} = inst_next, {this} = inst_start.
@@ -253,6 +293,11 @@ SEMANTICS = {
     'bt.push':   'r1 = r1 - 4; *:4 r1 = {A};',
     'bt.pop':    '{Dw} = *:4 r1; r1 = r1 + 4;',
     # --- system ------------------------------------------------------------
+    # Function-frame instructions. F counts saved registers r9..r(8+F);
+    # V counts additional local stack words. Expand them so Ghidra sees all
+    # individual stack accesses and register definitions.
+    'bn.entri':  stack_enter_semantics(),
+    'bn.rtnei':  stack_return_semantics(),
     'bt.nop':    '',
     'bn.nop':    '',
     'bt.trap':   'aeon_trap({G}:4);',

@@ -53,3 +53,9 @@ not silently added as aliases here.
 - [MStar AEON R2 register-save structure](https://github.com/Toysoft/mstar/blob/master/Chakra3_017a0d6_20170731/core/drv_bsp/nasa_nos_r2m/include/MsOS.h)
 - [Reko AEON multiply and SPR_MULHI rewrite](https://github.com/uxmal/reko/blob/master/src/Arch/OpenRISC/Aeon/AeonRewriter.cs)
 - [Reko AEON MULHI disassembler test](https://github.com/uxmal/reko/blob/master/src/UnitTests/Arch/OpenRISC/AeonDisassemblerTests.cs)
+
+## Function-frame instructions
+
+`bn.entri F,V` saves `F` registers beginning at `r9`, allocates a frame of `F+V` words, and updates `r1`. `bn.rtnei F,V` restores those registers and releases the same frame. The semantics unroll the maximum fifteen possible register saves/restores, so Ghidra sees individual stack accesses and register definitions instead of opaque user-ops.
+
+The paired layout is: register `r(9+i)` is stored at `old_sp - 4*(i+1)` and restored from `new_sp + 4*(F+V-i-1)`. This makes ENTRI and RTNEI exact inverses for any `F` and `V`. Reko's current ENTRI rewrite uses `old_sp - 4*i`, which appears one word above the corresponding RTNEI restore slot; its tests validate emitted expressions, not execution of the pair. The Ghidra emulator tests exercise the round trip. Vendor-simulator validation remains desirable for these instructions.

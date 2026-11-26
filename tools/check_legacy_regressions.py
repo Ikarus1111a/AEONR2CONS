@@ -94,6 +94,18 @@ for name in ("'bn.addsf':", "'bn.subsf':", "'bn.mulsf':", "'bn.divsf':",
              "'bn.sfnesf':", "'bn.sfgtsf':"):
     require(name in GEN, f"generator defines {name.strip(chr(39)+chr(58))}")
 
+
+# ENTRI/RTNEI must model frame memory and stack-pointer effects, not opaque calls.
+for mnemonic in (":b.entri ", ":b.rtnei "):
+    line = next((line for line in SINC.splitlines() if line.startswith(mnemonic)), "")
+    require(bool(line) and "frame_words" in line and "r1 =" in line and "aeon_" not in line,
+            f"{mnemonic.strip()} models frame memory and stack-pointer effects directly")
+    require("n_F_14_17:4" in line and "n_V_5_13:4" in line,
+            f"{mnemonic.strip()} consumes both encoded frame counts")
+pcodeops = (ROOT / "data/languages/aeonR2_pcodeops.sinc").read_text()
+require("define pcodeop aeon_entri;" not in pcodeops, "ENTRI is not an opaque pseudo-op")
+require("define pcodeop aeon_rtnei;" not in pcodeops, "RTNEI is not an opaque pseudo-op")
+
 # MStar AEON R2 preserves the three 32-bit MAC words across exception entry/exit.
 for name in ("maclo", "machi", "machi2", "mulhi"):
     require(name in COMMON, f"architectural register is named: {name}")
