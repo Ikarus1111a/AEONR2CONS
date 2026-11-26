@@ -1,0 +1,13 @@
+# MStar AEON "R2" (aeonR2) processor specification.
+#
+# Big-endian data (-EB), OpenRISC-derived, 32 GPRs, instructions of 2, 3 or 4 bytes
+# selected by the top three bits of the first byte (0xx=3, 100=2, 101=4,
+# 11x=4). No branch delay slots (confirmed against the vendor toolchain).
+# r0 reads as zero in hardware (confirmed in aeon-elf-sim).
+
+define endian=big;
+
+# loads and stores share the code space
+@define DATA "ram"
+
+@include "aeonR2_common.sinc"
