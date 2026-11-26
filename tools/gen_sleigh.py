@@ -239,7 +239,9 @@ SEMANTICS = {
     # OpenRISC EPCR. Writing a target there and stepping through the rfe lands
     # on it exactly; SPR 0x30 has no effect.
     # OpenRISC-compatible RFE: restore SR from ESR0 and return to EPCR0.
-    'bt.rfe':    'local epc:4 = *[spr]:4 (0x80); sr = *[spr]:4 (0x100); return [epc];',
+    'bt.rfe':    ('local epcr_addr:4 = 0x80; local esr_addr:4 = 0x100; '
+                  'local epc:4 = *[spr]:4 (epcr_addr); '
+                  'local esr:4 = *[spr]:4 (esr_addr); sr = esr; return [epc];'),
     'bt.ei':     'aeon_enable_interrupts();',
     'bt.di':     'aeon_disable_interrupts();',
     'bt.wait':   'aeon_wait();',
