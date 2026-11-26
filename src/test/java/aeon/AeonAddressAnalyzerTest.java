@@ -440,45 +440,58 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 		}
 	}
 
-	/** MStar names the three saved MAC words in its AEON R2 SPR header and vector save/restore code. */
+	/** MStar MAC and AMAC SPRs are named architectural state for both SPR encodings. */
 	@Test
-	public void macAccumulatorSprsAreNamedArchitecturalState() throws Exception {
+	public void macAndAmacSprsAreNamedArchitecturalState() throws Exception {
 		for (String language : List.of(BE, LE, HARVARD)) {
 			ProgramBuilder b = new ProgramBuilder("aeon-mac-sprs", language, this);
 			try {
 				b.createMemory("ram", CODE, 0x1000);
 				b.createMemory("spr", "spr:0", 0xB000);
-				int[] sprs = {0x2801, 0x2802, 0x2803, 0x2808};
-				String[] names = {"maclo", "machi", "machi2", "mulhi"};
-				long[] values = {0x11223344L, 0x55667788L, 0x99aabbccL, 0xdeadc0deL};
-				byte[][] instructions = new byte[sprs.length * 2][];
+				int[] sprs = {
+					0x2801, 0x2802, 0x2803, 0x2808,
+					0x2809, 0x280a, 0x280b, 0x280c, 0x280d
+				};
+				String[] names = {
+					"maclo", "machi", "machi2", "mulhi",
+					"amac0lo", "amac0hi", "amac1lo", "amac1hi", "amac_cfg"
+				};
+				long[] values = {
+					0x11223344L, 0x55667788L, 0x99aabbccL, 0xdeadc0deL,
+					0x10203040L, 0x50607080L, 0x90a0b0c0L, 0xd0e0f001L, 1L
+				};
+				byte[][] instructions = new byte[sprs.length * 4][];
 				for (int i = 0; i < sprs.length; i++) {
 					instructions[i * 2] = sprImmediate(true, 3, sprs[i]);
 					instructions[i * 2 + 1] = sprImmediate(false, 4, sprs[i]);
+					instructions[sprs.length * 2 + i * 2] = sprRegister(true, 5, 3, 0);
+					instructions[sprs.length * 2 + i * 2 + 1] = sprRegister(false, 5, 4, 0);
 				}
 				b.setBytes(CODE, concatenate(instructions));
 				EmulatorHelper emu = new EmulatorHelper(b.getProgram());
 				try {
 					emu.writeRegister("pc", 0x20000);
 					for (int i = 0; i < sprs.length; i++) {
-						emu.writeRegister("r3", values[i]);
-						assertTrue("mtspr " + names[i] + " failed for " + language,
-							emu.step(TaskMonitor.DUMMY));
-						assertTrue("mfspr " + names[i] + " failed for " + language,
-							emu.step(TaskMonitor.DUMMY));
-						assertEquals("SPR readback " + names[i] + " for " + language,
-							values[i], emu.readRegister("r4").longValue() & 0xffffffffL);
-						assertEquals("named register " + names[i] + " for " + language,
-							values[i], emu.readRegister(names[i]).longValue() & 0xffffffffL);
+						long value = values[i];
+						emu.writeRegister("r3", value);
+						assertTrue("immediate mtspr " + names[i] + " failed for " + language, emu.step(TaskMonitor.DUMMY));
+						assertTrue("immediate mfspr " + names[i] + " failed for " + language, emu.step(TaskMonitor.DUMMY));
+						assertEquals("immediate SPR readback " + names[i] + " for " + language, value, emu.readRegister("r4").longValue() & 0xffffffffL);
+						assertEquals("immediate named register " + names[i] + " for " + language, value, emu.readRegister(names[i]).longValue() & 0xffffffffL);
+					}
+					for (int i = 0; i < sprs.length; i++) {
+						long value = (values[i] ^ 0x0f0f0f0fL) & 0xffffffffL;
+						emu.writeRegister("r5", sprs[i]);
+						emu.writeRegister("r3", value);
+						assertTrue("register mtspr " + names[i] + " failed for " + language, emu.step(TaskMonitor.DUMMY));
+						assertTrue("register mfspr " + names[i] + " failed for " + language, emu.step(TaskMonitor.DUMMY));
+						assertEquals("register SPR readback " + names[i] + " for " + language, value, emu.readRegister("r4").longValue() & 0xffffffffL);
+						assertEquals("register named register " + names[i] + " for " + language, value, emu.readRegister(names[i]).longValue() & 0xffffffffL);
 					}
 				}
-				finally {
-					emu.dispose();
-				}
+				finally { emu.dispose(); }
 			}
-			finally {
-				b.dispose();
-			}
+			finally { b.dispose(); }
 		}
 	}
 
