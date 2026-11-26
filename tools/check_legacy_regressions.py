@@ -53,6 +53,19 @@ require(":b.lbz" in SINC and "zext(*[$(DATA)]:1" in SINC,
 require(":b.lbs" in SINC and "sext(*[$(DATA)]:1" in SINC,
         "signed byte loads sign-extend")
 
+# Supervision Register bit fields alias the architectural SR varnode; flags are
+# not independent state that can diverge from mfspr/mtspr or exception restore.
+COMMON = (ROOT / "data/languages/aeonR2_common.sinc").read_text()
+for bitrange in ("F=sr[9,1]", "CY=sr[10,1]", "OV=sr[11,1]", "SM=sr[0,1]"):
+    require(bitrange in COMMON, f"SR bit-range alias: {bitrange}")
+require("define register offset=0x120 size=1 [ F CY ]" not in COMMON,
+        "F/CY are no longer independent registers")
+for mnemonic in ("'bg.mtspr':", "'bg.mfspr':", "'bg.mtspr1':", "'bg.mfspr1':"):
+    require(mnemonic in GEN and "n == 17:4" in GEN[GEN.index(mnemonic):GEN.index(mnemonic)+500],
+            f"{mnemonic.strip(chr(39)+chr(58))} routes SPR_SR to SR")
+require("sr = *[spr]:4 (0x100)" in SINC and "return [epc]" in SINC,
+        "RFE restores ESR0 to SR and returns through EPCR0")
+
 # Cache/synchronization behavior is emitted as active AEON P-code operations,
 # including the operations added or refined during the legacy work.
 for name in ("aeon_flush(", "aeon_invalidate(", "aeon_flush_invalidate(",
