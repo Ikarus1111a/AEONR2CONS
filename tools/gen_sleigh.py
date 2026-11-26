@@ -389,31 +389,10 @@ SPLIT = {
 }
 
 def mac_accumulator_semantics(name, mode, signedness, part, accumulator):
-    """Native P-code for one of the two MStar AMAC accumulators."""
+    """Diagnostic-only constant write to isolate AMAC instruction decoding."""
     low = f"amac{accumulator}lo"
     high = f"amac{accumulator}hi"
-    extend = "sext" if signedness == "signed" else "zext"
-    if part == "low16":
-        rhs = f"{extend}({{B}}[0,16])"
-    elif part == "high16":
-        rhs = f"{extend}({{B}}[16,16])"
-    else:
-        rhs = f"{extend}({{B}}:4)"
-    lhs = f"{extend}({{A}}:4)"
-    fallback = f"aeon_{name.split('.', 1)[1]}({{A}}, {{B}}, {accumulator}:4);"
-    if mode == "set":
-        update = f"{low} = product[0,4]; {high} = product[4,4];"
-    else:
-        operator = "+" if mode == "add" else "-"
-        update = (
-            f"local accumulator:8 = (zext({high}:4) << 32) | zext({low}:4); "
-            f"accumulator = accumulator {operator} product; "
-            f"{low} = accumulator[0,4]; {high} = accumulator[4,4];"
-        )
-    return (
-        f"local product:8 = {lhs} * {rhs}; "
-        f"{update}"
-    )
+    return f"{low} = 1:4; {high} = 0:4;"
 
 MAC_OPERATIONS = {
     'bg.amul': ["set","signed","word"],

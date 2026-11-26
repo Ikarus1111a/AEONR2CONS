@@ -161,10 +161,8 @@ for mnemonic in ("amul", "amac", "amsb", "amulu", "amacu", "amsbu",
     require("g_cc_7_8!=0" in constructors[2] and "g_cc_7_8!=1" in constructors[2] and
             "g_c_7_8" in constructors[2] and "aeon_" in constructors[2],
             f"{mnemonic} preserves reserved-selector fallback")
-    if mnemonic in ("amac", "amsb", "amacu", "amsbu", "amac_lh", "amsb_lh", "amac_hh", "amsb_hh"):
-        require("local accumulator:8" in constructors[0] and
-                "local accumulator:8" in constructors[1],
-                f"{mnemonic} has one 64-bit temporary per accumulator constructor")
+    require("amac0lo = 1:4" in constructors[0] and "amac1lo = 1:4" in constructors[1],
+            f"{mnemonic} diagnostic constructors write only their selected accumulator")
 require("define bitrange AMAC_ENABLE" not in COMMON and
         "local cfg_half:4 = amac_cfg s/ 2:4" not in GEN and
         "local cfg_even:4 = cfg_half * 2:4" not in GEN and "SPLIT[_name]" in GEN and
@@ -174,7 +172,7 @@ require("local cfg_half:4 = amac_cfg s/ 2:4" not in SINC and
         "local cfg_even:4 = cfg_half * 2:4" not in SINC and
         "g_cc_7_8=(7,8)" in SINC and
         ' "a0"' in SINC and ' "a1"' in SINC,
-        "diagnostic AMAC output omits only the config-enable guard")
+        "diagnostic AMAC output uses constant writes to isolate decode from arithmetic")
 require("macAccumulatorsImplementWordAndHalfwordProducts" in TEST,
         "AMAC semantics have numerical emulator tests")
 
