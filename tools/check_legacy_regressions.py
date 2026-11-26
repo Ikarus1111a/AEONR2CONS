@@ -130,9 +130,9 @@ for spr_number, register_name in (
     (10241, "maclo"), (10242, "machi"), (10243, "machi2"), (10248, "mulhi")
 ):
     value = str(spr_number)
-    require(value in GEN and f"{register_name} = {{B}}" in GEN and
-            f"{{Dw}} = {register_name}" in GEN,
-            f"SPR {spr_number:#06x} aliases {register_name}")
+    require(value in GEN and register_name in COMMON and
+            f"n == {value}:4" in SINC and register_name in SINC,
+            f"SPR {spr_number:#06x} aliases {register_name} in generated SLEIGH")
 for mnemonic in (":b.mul ", ":b.mulu ", ":b.muli "):
     line = next((line for line in SINC.splitlines() if line.startswith(mnemonic)), "")
     require("product[0,32]" in line and "product[32,32]" in line and "mulhi" in line,
