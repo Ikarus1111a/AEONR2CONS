@@ -308,6 +308,74 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 		};
 	}
 
+
+	/**
+	 * Scalar single-precision AEON FPU operations must be native FLOAT_* P-code,
+	 * not opaque userops. Vectors are IEEE-754 bit patterns supplied directly in
+	 * GPRs so the expected results are independent of host-language float formatting.
+	 */
+	@Test
+	public void singlePrecisionFpuArithmeticConversionsAndComparisons() throws Exception {
+		for (String language : List.of(BE, LE, HARVARD)) {
+			ProgramBuilder b = new ProgramBuilder("aeon-fpu32", language, this);
+			try {
+				b.createMemory("ram", CODE, 0x1000);
+				b.setBytes(CODE, bytes(
+					0x74, 0xc3, 0x20, // addsf r6,r3,r4: 1.5 + 2.25 = 3.75
+					0x74, 0xe4, 0x19, // subsf r7,r4,r3: 2.25 - 1.5 = 0.75
+					0x75, 0x03, 0x24, // mulsf r8,r3,r4: 1.5 * 2.25 = 3.375
+					0x75, 0x44, 0x1e, // divsf r10,r4,r3: 2.25 / 1.5 = 1.5
+					0x75, 0x85, 0x02, // itof.s r12,r5: signed 42 -> 42.0f
+					0x75, 0xa6, 0x03, // ftoi.s r13,r6: 3.75f -> 3
+					0x78, 0x03, 0x18, // sfeqsf r3,r3
+					0x78, 0x03, 0x21, // sflesf r3,r4
+					0x78, 0x03, 0x1c, // sfnesf r3,r4
+					0x78, 0x04, 0x1d, // sfgtsf r4,r3
+					0x78, 0x03, 0x1d  // sfgtsf r3,r4 (false; must clear F)
+				));
+				EmulatorHelper emu = new EmulatorHelper(b.getProgram());
+				try {
+					emu.writeRegister("sr", 0);
+					emu.writeRegister("r3", 0x3fc00000L); // 1.5f
+					emu.writeRegister("r4", 0x40100000L); // 2.25f
+					emu.writeRegister("r5", 42);
+					emu.writeRegister("pc", 0x20000);
+					for (int i = 0; i < 6; i++) {
+						assertTrue("FPU instruction " + i + " failed for " + language,
+							emu.step(TaskMonitor.DUMMY));
+					}
+					assertEquals("add 1.5 + 2.25 for " + language, 0x40700000L,
+						emu.readRegister("r6").longValue() & 0xffffffffL);
+					assertEquals("subtract 2.25 - 1.5 for " + language, 0x3f400000L,
+						emu.readRegister("r7").longValue() & 0xffffffffL);
+					assertEquals("multiply 1.5 * 2.25 for " + language, 0x40580000L,
+						emu.readRegister("r8").longValue() & 0xffffffffL);
+					assertEquals("divide 2.25 / 1.5 for " + language, 0x3fc00000L,
+						emu.readRegister("r10").longValue() & 0xffffffffL);
+					assertEquals("int to float 42 for " + language, 0x42280000L,
+						emu.readRegister("r12").longValue() & 0xffffffffL);
+					assertEquals("float to int truncates 3.75 for " + language, 3,
+						emu.readRegister("r13").longValue() & 0xffffffffL);
+
+					long[] expectedFlags = {1, 1, 1, 1, 0};
+					for (int i = 0; i < expectedFlags.length; i++) {
+						assertTrue("FPU compare " + i + " failed for " + language,
+							emu.step(TaskMonitor.DUMMY));
+						long flag = (emu.readRegister("sr").longValue() >>> 9) & 1L;
+						assertEquals("FPU compare flag " + i + " for " + language,
+							expectedFlags[i], flag);
+					}
+				}
+				finally {
+					emu.dispose();
+				}
+			}
+			finally {
+				b.dispose();
+			}
+		}
+	}
+
 	private void build(String language, int... code) throws Exception {
 		builder = new ProgramBuilder("aeon", language, this);
 		builder.createMemory("ram", CODE, 0x10000);

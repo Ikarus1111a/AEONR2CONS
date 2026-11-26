@@ -155,6 +155,19 @@ SEMANTICS = {
     'bn.srli':   '{Dw} = {A} >> {H};',
     'bn.srai':   '{Dw} = {A} s>> {H};',
     'bn.rori':   '{Dw} = ({A} >> {H}) | ({A} << (32 - {H}));',
+    # --- scalar IEEE-754 single precision -------------------------------
+    # These are native SLEIGH floating-point operations, not opaque CALLOTHERs.
+    # FPU operands are 32-bit IEEE-754 values carried in the AEON GPR file.
+    'bn.addsf':   '{Dw} = {A} f+ {B};',
+    'bn.subsf':   '{Dw} = {A} f- {B};',
+    'bn.mulsf':   '{Dw} = {A} f* {B};',
+    'bn.divsf':   '{Dw} = {A} f/ {B};',
+    'bn.i2sf':    '{Dw} = int2float({A});',
+    'bn.sf2i':    '{Dw} = trunc({A});',
+    'bn.sfeqsf':  'F = ({A} f== {B});',
+    'bn.sflesf':  'F = ({A} f<= {B});',
+    'bn.sfnesf':  'F = ({A} f!= {B});',
+    'bn.sfgtsf':  'F = ({B} f< {A});',
     # --- compares: set the F flag ----------------------------------------
     'bn.sfeq':   'F = ({A} == {B});',
     'bn.sfne':   'F = ({A} != {B});',

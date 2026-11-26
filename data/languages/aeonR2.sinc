@@ -806,20 +806,20 @@ IMM_g_CARET_3_14: val is g_CARET_3_14 [ val = ((g_CARET_3_14) * 4); ] { export *
 :b.satus n_D_13_17,n_A_8_12,n_H_3_7 is n_c23_23=0 & n_c20_22=7 & n_c18_19=0 & n_c2_2=0 & n_c0_1=3 & RD_n_A_8_12 & n_A_8_12 & n_D_13_17 & n_H_3_7 { n_D_13_17 = aeon_satus(RD_n_A_8_12, n_H_3_7:4); }
 :bn.sf2df n_D_13_17,n_A_8_12 is n_c23_23=0 & n_c20_22=7 & n_c18_19=0 & n_c3_7=0 & n_c2_2=1 & n_c0_1=0 & RD_n_A_8_12 & n_A_8_12 & n_D_13_17 { n_D_13_17 = aeon_sf2df(RD_n_A_8_12); }
 :bn.df2sf n_D_13_17,n_A_8_12 is n_c23_23=0 & n_c20_22=7 & n_c18_19=0 & n_c3_7=0 & n_c2_2=1 & n_c1_1=0 & n_c0_0=1 & RD_n_A_8_12 & n_A_8_12 & n_D_13_17 { n_D_13_17 = aeon_df2sf(RD_n_A_8_12); }
-:b.addsf n_D_13_17,n_A_8_12,n_B_3_7 is n_c23_23=0 & n_c20_22=7 & n_c19_19=0 & n_c18_18=1 & n_c0_2=0 & RD_n_A_8_12 & RD_n_B_3_7 & n_A_8_12 & n_B_3_7 & n_D_13_17 { n_D_13_17 = aeon_addsf(RD_n_A_8_12, RD_n_B_3_7); }
-:b.subsf n_D_13_17,n_A_8_12,n_B_3_7 is n_c23_23=0 & n_c20_22=7 & n_c19_19=0 & n_c18_18=1 & n_c1_2=0 & n_c0_0=1 & RD_n_A_8_12 & RD_n_B_3_7 & n_A_8_12 & n_B_3_7 & n_D_13_17 { n_D_13_17 = aeon_subsf(RD_n_A_8_12, RD_n_B_3_7); }
-:lf.itof.s n_D_13_17,n_A_8_12 is n_c23_23=0 & n_c20_22=7 & n_c19_19=0 & n_c18_18=1 & n_c4_7=0 & n_c2_3=0 & n_c1_1=1 & n_c0_0=0 & RD_n_A_8_12 & n_A_8_12 & n_D_13_17 { n_D_13_17 = aeon_i2sf(RD_n_A_8_12); }
-:lf.ftoi.s n_D_13_17,n_A_8_12 is n_c23_23=0 & n_c20_22=7 & n_c19_19=0 & n_c18_18=1 & n_c4_7=0 & n_c2_3=0 & n_c0_1=3 & RD_n_A_8_12 & n_A_8_12 & n_D_13_17 { n_D_13_17 = aeon_sf2i(RD_n_A_8_12); }
-:b.mulsf n_D_13_17,n_A_8_12,n_B_3_7 is n_c23_23=0 & n_c20_22=7 & n_c19_19=0 & n_c18_18=1 & n_c2_2=1 & n_c0_1=0 & RD_n_A_8_12 & RD_n_B_3_7 & n_A_8_12 & n_B_3_7 & n_D_13_17 { n_D_13_17 = aeon_mulsf(RD_n_A_8_12, RD_n_B_3_7); }
+:b.addsf n_D_13_17,n_A_8_12,n_B_3_7 is n_c23_23=0 & n_c20_22=7 & n_c19_19=0 & n_c18_18=1 & n_c0_2=0 & RD_n_A_8_12 & RD_n_B_3_7 & n_A_8_12 & n_B_3_7 & n_D_13_17 { n_D_13_17 = RD_n_A_8_12 f+ RD_n_B_3_7; }
+:b.subsf n_D_13_17,n_A_8_12,n_B_3_7 is n_c23_23=0 & n_c20_22=7 & n_c19_19=0 & n_c18_18=1 & n_c1_2=0 & n_c0_0=1 & RD_n_A_8_12 & RD_n_B_3_7 & n_A_8_12 & n_B_3_7 & n_D_13_17 { n_D_13_17 = RD_n_A_8_12 f- RD_n_B_3_7; }
+:lf.itof.s n_D_13_17,n_A_8_12 is n_c23_23=0 & n_c20_22=7 & n_c19_19=0 & n_c18_18=1 & n_c4_7=0 & n_c2_3=0 & n_c1_1=1 & n_c0_0=0 & RD_n_A_8_12 & n_A_8_12 & n_D_13_17 { n_D_13_17 = int2float(RD_n_A_8_12); }
+:lf.ftoi.s n_D_13_17,n_A_8_12 is n_c23_23=0 & n_c20_22=7 & n_c19_19=0 & n_c18_18=1 & n_c4_7=0 & n_c2_3=0 & n_c0_1=3 & RD_n_A_8_12 & n_A_8_12 & n_D_13_17 { n_D_13_17 = trunc(RD_n_A_8_12); }
+:b.mulsf n_D_13_17,n_A_8_12,n_B_3_7 is n_c23_23=0 & n_c20_22=7 & n_c19_19=0 & n_c18_18=1 & n_c2_2=1 & n_c0_1=0 & RD_n_A_8_12 & RD_n_B_3_7 & n_A_8_12 & n_B_3_7 & n_D_13_17 { n_D_13_17 = RD_n_A_8_12 f* RD_n_B_3_7; }
 :b.maddsf n_D_13_17,n_A_8_12,n_B_3_7 is n_c23_23=0 & n_c20_22=7 & n_c19_19=0 & n_c18_18=1 & n_c2_2=1 & n_c1_1=0 & n_c0_0=1 & RD_n_A_8_12 & RD_n_B_3_7 & n_A_8_12 & n_B_3_7 & n_D_13_17 { n_D_13_17 = aeon_maddsf(RD_n_A_8_12, RD_n_B_3_7); }
-:b.divsf n_D_13_17,n_A_8_12,n_B_3_7 is n_c23_23=0 & n_c20_22=7 & n_c19_19=0 & n_c18_18=1 & n_c1_2=3 & n_c0_0=0 & RD_n_A_8_12 & RD_n_B_3_7 & n_A_8_12 & n_B_3_7 & n_D_13_17 { n_D_13_17 = aeon_divsf(RD_n_A_8_12, RD_n_B_3_7); }
+:b.divsf n_D_13_17,n_A_8_12,n_B_3_7 is n_c23_23=0 & n_c20_22=7 & n_c19_19=0 & n_c18_18=1 & n_c1_2=3 & n_c0_0=0 & RD_n_A_8_12 & RD_n_B_3_7 & n_A_8_12 & n_B_3_7 & n_D_13_17 { n_D_13_17 = RD_n_A_8_12 f/ RD_n_B_3_7; }
 :b.remsf n_D_13_17,n_A_8_12,n_B_3_7 is n_c23_23=0 & n_c20_22=7 & n_c19_19=0 & n_c18_18=1 & n_c0_2=7 & RD_n_A_8_12 & RD_n_B_3_7 & n_A_8_12 & n_B_3_7 & n_D_13_17 { n_D_13_17 = aeon_remsf(RD_n_A_8_12, RD_n_B_3_7); }
-:b.sfeqsf n_A_8_12,n_B_3_7 is n_c23_23=0 & n_c19_22=15 & n_c18_18=0 & n_c13_17=0 & n_c0_2=0 & RD_n_A_8_12 & RD_n_B_3_7 & n_A_8_12 & n_B_3_7 { aeon_sfeqsf(RD_n_A_8_12, RD_n_B_3_7); }
-:b.sflesf n_A_8_12,n_B_3_7 is n_c23_23=0 & n_c19_22=15 & n_c18_18=0 & n_c13_17=0 & n_c1_2=0 & n_c0_0=1 & RD_n_A_8_12 & RD_n_B_3_7 & n_A_8_12 & n_B_3_7 { aeon_sflesf(RD_n_A_8_12, RD_n_B_3_7); }
+:b.sfeqsf n_A_8_12,n_B_3_7 is n_c23_23=0 & n_c19_22=15 & n_c18_18=0 & n_c13_17=0 & n_c0_2=0 & RD_n_A_8_12 & RD_n_B_3_7 & n_A_8_12 & n_B_3_7 { F = (RD_n_A_8_12 f== RD_n_B_3_7); }
+:b.sflesf n_A_8_12,n_B_3_7 is n_c23_23=0 & n_c19_22=15 & n_c18_18=0 & n_c13_17=0 & n_c1_2=0 & n_c0_0=1 & RD_n_A_8_12 & RD_n_B_3_7 & n_A_8_12 & n_B_3_7 { F = (RD_n_A_8_12 f<= RD_n_B_3_7); }
 :b.sfeqdf n_A_8_12,n_B_3_7 is n_c23_23=0 & n_c19_22=15 & n_c18_18=0 & n_c13_17=0 & n_c2_2=0 & n_c1_1=1 & n_c0_0=0 & RD_n_A_8_12 & RD_n_B_3_7 & n_A_8_12 & n_B_3_7 { aeon_sfeqdf(RD_n_A_8_12, RD_n_B_3_7); }
 :b.sfledf n_A_8_12,n_B_3_7 is n_c23_23=0 & n_c19_22=15 & n_c18_18=0 & n_c13_17=0 & n_c2_2=0 & n_c0_1=3 & RD_n_A_8_12 & RD_n_B_3_7 & n_A_8_12 & n_B_3_7 { aeon_sfledf(RD_n_A_8_12, RD_n_B_3_7); }
-:b.sfnesf n_A_8_12,n_B_3_7 is n_c23_23=0 & n_c19_22=15 & n_c18_18=0 & n_c13_17=0 & n_c2_2=1 & n_c0_1=0 & RD_n_A_8_12 & RD_n_B_3_7 & n_A_8_12 & n_B_3_7 { aeon_sfnesf(RD_n_A_8_12, RD_n_B_3_7); }
-:b.sfgtsf n_A_8_12,n_B_3_7 is n_c23_23=0 & n_c19_22=15 & n_c18_18=0 & n_c13_17=0 & n_c2_2=1 & n_c1_1=0 & n_c0_0=1 & RD_n_A_8_12 & RD_n_B_3_7 & n_A_8_12 & n_B_3_7 { aeon_sfgtsf(RD_n_A_8_12, RD_n_B_3_7); }
+:b.sfnesf n_A_8_12,n_B_3_7 is n_c23_23=0 & n_c19_22=15 & n_c18_18=0 & n_c13_17=0 & n_c2_2=1 & n_c0_1=0 & RD_n_A_8_12 & RD_n_B_3_7 & n_A_8_12 & n_B_3_7 { F = (RD_n_A_8_12 f!= RD_n_B_3_7); }
+:b.sfgtsf n_A_8_12,n_B_3_7 is n_c23_23=0 & n_c19_22=15 & n_c18_18=0 & n_c13_17=0 & n_c2_2=1 & n_c1_1=0 & n_c0_0=1 & RD_n_A_8_12 & RD_n_B_3_7 & n_A_8_12 & n_B_3_7 { F = (RD_n_B_3_7 f< RD_n_A_8_12); }
 :b.sfnedf n_A_8_12,n_B_3_7 is n_c23_23=0 & n_c19_22=15 & n_c18_18=0 & n_c13_17=0 & n_c1_2=3 & n_c0_0=0 & RD_n_A_8_12 & RD_n_B_3_7 & n_A_8_12 & n_B_3_7 { aeon_sfnedf(RD_n_A_8_12, RD_n_B_3_7); }
 :b.sfgtdf n_A_8_12,n_B_3_7 is n_c23_23=0 & n_c19_22=15 & n_c18_18=0 & n_c13_17=0 & n_c0_2=7 & RD_n_A_8_12 & RD_n_B_3_7 & n_A_8_12 & n_B_3_7 { aeon_sfgtdf(RD_n_A_8_12, RD_n_B_3_7); }
 :b.addc_s_lwq n_D_13_17,n_A_8_12,"q"^n_d_4_5,n_f_3_3 is n_c23_23=0 & n_c18_22=31 & n_c6_7=0 & n_c0_2=0 & RD_n_A_8_12 & n_A_8_12 & n_D_13_17 & n_d_4_5 & n_f_3_3 { n_D_13_17 = aeon_addc_s_lwq(RD_n_A_8_12, n_d_4_5:4, n_f_3_3:4); }

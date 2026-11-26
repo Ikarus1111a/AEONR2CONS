@@ -72,6 +72,28 @@ for mnemonic in ("'bg.mtspr':", "'bg.mfspr':", "'bg.mtspr1':", "'bg.mfspr1':"):
 require("local esr_addr:4 = 0x100" in SINC and "sr = esr" in SINC and "return [epc]" in SINC,
         "RFE restores ESR0 to SR and returns through EPCR0")
 
+
+# Scalar IEEE-754 single-precision operations must be represented by native P-code.
+for mnemonic, expression in (
+    (":b.addsf", "f+"),
+    (":b.subsf", "f-"),
+    (":b.mulsf", "f*"),
+    (":b.divsf", "f/"),
+    (":lf.itof.s", "int2float("),
+    (":lf.ftoi.s", "trunc("),
+    (":b.sfeqsf", "f=="),
+    (":b.sflesf", "f<="),
+    (":b.sfnesf", "f!="),
+    (":b.sfgtsf", "f<"),
+):
+    line = next((line for line in SINC.splitlines() if line.startswith(mnemonic + " ")), "")
+    require(bool(line) and expression in line and "aeon_" not in line,
+            f"{mnemonic} uses native floating-point semantics")
+for name in ("'bn.addsf':", "'bn.subsf':", "'bn.mulsf':", "'bn.divsf':",
+             "'bn.i2sf':", "'bn.sf2i':", "'bn.sfeqsf':", "'bn.sflesf':",
+             "'bn.sfnesf':", "'bn.sfgtsf':"):
+    require(name in GEN, f"generator defines {name.strip(chr(39)+chr(58))}")
+
 # Cache/synchronization behavior is emitted as active AEON P-code operations,
 # including the operations added or refined during the legacy work.
 for name in ("aeon_flush(", "aeon_invalidate(", "aeon_flush_invalidate(",
