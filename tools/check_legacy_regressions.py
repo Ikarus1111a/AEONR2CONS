@@ -63,7 +63,7 @@ require("define register offset=0x120 size=1 [ F CY ]" not in COMMON,
 for mnemonic in ("'bg.mtspr':", "'bg.mfspr':", "'bg.mtspr1':", "'bg.mfspr1':"):
     require(mnemonic in GEN and "n == 17:4" in GEN[GEN.index(mnemonic):GEN.index(mnemonic)+500],
             f"{mnemonic.strip(chr(39)+chr(58))} routes SPR_SR to SR")
-require("sr = *[spr]:4 (0x100)" in SINC and "return [epc]" in SINC,
+require("local esr_addr:4 = 0x100" in SINC and "sr = esr" in SINC and "return [epc]" in SINC,
         "RFE restores ESR0 to SR and returns through EPCR0")
 
 # Cache/synchronization behavior is emitted as active AEON P-code operations,
