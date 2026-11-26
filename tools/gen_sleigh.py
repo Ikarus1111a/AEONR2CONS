@@ -100,10 +100,10 @@ SEMANTICS = {
     # The core exposes the full 64-bit product: the low word goes to rD and
     # the high word is readable as SPR_MULHI (0x2808). This matches Reko's
     # independent AEON rewriter and its SPR_MULHI read test.
-    'bn.mul':    ('local a:8 = sext({A}); local b:8 = sext({B}); '
+    'bn.mul':    ('local a:8 = sext({A}:4); local b:8 = sext({B}:4); '
                   'local product:8 = a * b; '
                   '{Dw} = product[0,32]; mulhi = product[32,32];'),
-    'bn.mulu':   ('local a:8 = zext({A}); local b:8 = zext({B}); '
+    'bn.mulu':   ('local a:8 = zext({A}:4); local b:8 = zext({B}:4); '
                   'local product:8 = a * b; '
                   '{Dw} = product[0,32]; mulhi = product[32,32];'),
     'bn.div':    '{Dw} = {A} s/ {B};',
@@ -125,7 +125,7 @@ SEMANTICS = {
     'bg.andi':   '{Dw} = {A} & {t};',
     'bg.ori':    '{Dw} = {A} | {t};',
     'bg.xori':   '{Dw} = {A} ^ {Y};',
-    'bg.muli':   ('local a:8 = sext({A}); local b:8 = sext({Y}); '
+    'bg.muli':   ('local a:8 = sext({A}:4); local b:8 = sext({Y}:2); '
                   'local product:8 = a * b; '
                   '{Dw} = product[0,32]; mulhi = product[32,32];'),
     'bg.movhi':  '{Dw} = {U} << 16;',
