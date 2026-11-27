@@ -536,17 +536,18 @@ SEMANTICS["mv.abs"] = vector_abs_semantics()
 SEMANTICS["mv.upckl"] = vector_unpack_semantics(False)
 SEMANTICS["mv.upckh"] = vector_unpack_semantics(True)
 def vector_insert_semantics():
-    statements = ["local source_word:4 = {A}:4; local source:2 = source_word[0,16];"]
+    statements = [
+        "local source_word:4 = {A}:4; local source:2 = source_word[0,16];"
+    ]
     wide = []
     for lane in range(4):
         offset = lane * 16
         statements.extend([
+            f"local selector{lane}:1 = {{H}}[{lane},1];",
+            f"local mask{lane}:2 = 0:2 - zext(selector{lane});",
             f"local old{lane}:2 = {{D}}[{offset},16];",
-            f"local result{lane}:2 = old{lane};",
-            f"if ({{H}}[{lane},1] != 0:1) goto <mtv_set_{lane}>;",
-            f"goto <mtv_done_{lane}>;",
-            f"<mtv_set_{lane}> result{lane} = source;",
-            f"<mtv_done_{lane}> local wide{lane}:8 = zext(result{lane});",
+            f"local result{lane}:2 = (source & mask{lane}) | (old{lane} & ~mask{lane});",
+            f"local wide{lane}:8 = zext(result{lane});",
         ])
         wide.append(f"wide{lane}")
     statements.append("{Dw} = " + " | ".join(
@@ -554,6 +555,8 @@ def vector_insert_semantics():
         for lane, name in enumerate(wide)
     ) + ";")
     return " ".join(statements)
+
+
 
 
 def vector_duplicate_semantics():
@@ -615,12 +618,12 @@ SEMANTICS.update({
     # The SDK inserts rA into the low or high 32-bit word according to H&0xc.
     "mv.mtvw": (
         "local source:4 = {A}:4; "
+        "local selector:1 = {H}[2,1] | {H}[3,1]; "
+        "local mask:4 = 0:4 - zext(selector); "
         "local low:4 = {D}[0,32]; local high:4 = {D}[32,32]; "
-        "local low_new:4 = low; local high_new:4 = high; "
-        "if ({H}[2,2] != 0:2) goto <mtvw_upper>; "
-        "high_new = source; goto <mtvw_join>; "
-        "<mtvw_upper> low_new = source; "
-        "<mtvw_join> local low_wide:8 = zext(low_new); "
+        "local low_new:4 = (source & mask) | (low & ~mask); "
+        "local high_new:4 = (source & ~mask) | (high & mask); "
+        "local low_wide:8 = zext(low_new); "
         "local high_wide:8 = zext(high_new); "
         "local high_shifted:8 = high_wide << 32; "
         "{Dw} = low_wide | high_shifted;"
