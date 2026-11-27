@@ -48,5 +48,9 @@ variants (BE, LE data, and LE Harvard), including:
 - signed absolute value at `-32768`
 - unpack ordering
 
+The native inventory is also checked against the ISA database and the
+committed `.sinc` constructors. This catches the easy-to-miss failure where a
+generator change exists in Python but Ghidra still loads stale opaque P-code.
+
 These tests are part of the Ghidra headless `verify` task. Passing CI is the
 acceptance condition; merely generating the constructors is not validation.
