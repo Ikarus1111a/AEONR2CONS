@@ -27,7 +27,7 @@ required = {
     "mv.min", "mv.minu", "mv.max", "mv.maxu",
     "mv.sra", "mv.srl", "mv.sll", "mv.abs", "mv.upckl", "mv.upckh",
     "mv.mfv", "mv.mfvu", "mv.mfv.b", "mv.mfvu.b", "mv.mfvw",
-    "mv.mtv", "mv.mtvw", "mv.mmk", "mv.dup", "mv.cat",
+    "mv.mmk", "mv.dup", "mv.cat",
 }
 missing = sorted(required - native)
 if missing:
