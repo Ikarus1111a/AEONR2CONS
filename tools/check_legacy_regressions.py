@@ -144,11 +144,21 @@ require("CID=sr[28,4]" in COMMON, "SR context-ID bits are represented")
 for mnemonic in ("bg.amul", "bg.amac", "bg.amsb", "bg.amulu", "bg.amacu", "bg.amsbu", "bg.amul_lh", "bg.amac_lh", "bg.amsb_lh", "bg.amul_hh", "bg.amac_hh", "bg.amsb_hh"):
     require(f"'{mnemonic}':" in GEN and mnemonic in GEN[GEN.index("MAC_OPERATIONS = {"):GEN.index("for _name,")],
             f"generator has native AMAC semantic for {mnemonic}")
-for index, name in ((10249, "amac0lo"), (10250, "amac0hi"),
-                    (10251, "amac1lo"), (10252, "amac1hi"),
-                    (10253, "amac_cfg")):
+for index, name in (
+    (10245, "amacguard0"), (10246, "amacguard1"),
+    (10249, "amac0lo"), (10250, "amac0hi"), (10251, "amac1lo"),
+    (10252, "amac1hi"), (10253, "amac_cfg"), (10254, "amacstatus"),
+    (10256, "amacq0"), (10257, "amacq0_addrofs"), (10258, "amacq0_stride"),
+    (10259, "amacq0_stride2"), (10260, "amacq0_addrofs_stride"),
+    (10264, "amacq1"), (10265, "amacq1_addrofs"), (10266, "amacq1_stride"),
+    (10267, "amacq1_stride2"), (10268, "amacq1_addrofs_stride")):
     require(name in COMMON and f"n == {index}:4" in SINC and name in SINC,
             f"AMAC SPR {index:#06x} is routed to {name}")
+for field in ("AMAC_ENABLE=amac_cfg[0,1]", "AMAC_FMODE=amac_cfg[2,1]",
+              "AMAC0_SAT=amac_cfg[8,2]", "AMAC0_RND=amac_cfg[10,1]",
+              "AMAC1_SAT=amac_cfg[16,2]", "AMAC1_RND=amac_cfg[18,1]",
+              "AMACSTATUS_OV=amacstatus[0,1]"):
+    require(field in COMMON, f"AMAC architectural bitfield {field}")
 for mnemonic in ("amul", "amac", "amsb", "amulu", "amacu", "amsbu",
                  "amul_lh", "amac_lh", "amsb_lh", "amul_hh", "amac_hh", "amsb_hh"):
     constructors = [line for line in SINC.splitlines() if line.startswith(f":b.{mnemonic} ")]
@@ -175,7 +185,7 @@ for mnemonic in ("amul", "amac", "amsb", "amulu", "amacu", "amsbu",
         require("product[0,4]" not in constructor and "product[4,4]" not in constructor and
                 "accumulator[0,4]" not in constructor and "accumulator[4,4]" not in constructor,
                 f"{mnemonic} uses no 4-bit result slices for word values")
-require("define bitrange AMAC_ENABLE" not in COMMON and
+require("define bitrange AMAC_ENABLE=amac_cfg[0,1]" in COMMON and
         "local cfg_half:4 = amac_cfg s/ 2:4" in GEN and
         "local cfg_even:4 = cfg_half * 2:4" in GEN and "SPLIT[_name]" in GEN and
         "variant_disp = disp.replace" in GEN and "self.emit_ctor(name, mnem, variant_disp" in GEN,

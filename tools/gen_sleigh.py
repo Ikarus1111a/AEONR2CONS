@@ -120,10 +120,17 @@ def spr_access_semantics(write, immediate):
     operation = "write" if write else "read"
     lines = [f"local n:4 = {n_expr};", "local addr:4 = n * 4;"]
     named = [(17, "sr"), (10241, "maclo"), (10242, "machi"),
-             (10243, "machi2"), (10248, "mulhi"),
+             (10243, "machi2"), (10245, "amacguard0"), (10246, "amacguard1"),
+             (10248, "mulhi"),
              (10249, "amac0lo"), (10250, "amac0hi"),
              (10251, "amac1lo"), (10252, "amac1hi"),
-             (10253, "amac_cfg")]
+             (10253, "amac_cfg"), (10254, "amacstatus"),
+             (10256, "amacq0"), (10257, "amacq0_addrofs"),
+             (10258, "amacq0_stride"), (10259, "amacq0_stride2"),
+             (10260, "amacq0_addrofs_stride"),
+             (10264, "amacq1"), (10265, "amacq1_addrofs"),
+             (10266, "amacq1_stride"), (10267, "amacq1_stride2"),
+             (10268, "amacq1_addrofs_stride")]
     for base, prefix in ((32, "epcr"), (48, "eear"), (64, "esr")):
         named.extend((base + i, f"{prefix}{i}") for i in range(16))
     for index, name in named:

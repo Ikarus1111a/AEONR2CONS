@@ -43,11 +43,21 @@ Sources: [AEON SIMD reference implementation](https://github.com/longyanjun2020/
 
 ## AMAC control and queue state
 
+| SPR index | Register varnode | Meaning |
+|---:|---|---|
+| 0x2805–0x2806 | amacguard0–amacguard1 | Guard registers |
+| 0x2808 | mulhi | Multiply-high (Reko-derived name) |
+| 0x2809–0x280C | amac0lo/hi, amac1lo/hi | Accumulator words |
+| 0x280D | amac_cfg | AMAC configuration |
+| 0x280E | amacstatus | AMAC status |
+| 0x2810–0x2814 | amacq0, Q0 offset/strides | Queue 0 state |
+| 0x2818–0x281C | amacq1, Q1 offset/strides | Queue 1 state |
+
 A separate MStar AEON SPR header supplies the wider MAC-group map. In addition to the scalar accumulator halves and configuration register already named in SLEIGH, it defines AMULHI at 0x2808, two guard registers at 0x2805 and 0x2806, and AMACSTATUS at 0x280e. Two queue-control banks occupy 0x2810..0x2814 and 0x2818..0x281c; each has a queue word, address offset, stride, second stride, and combined offset/stride register. The queue-stride word carries two 8-bit stride values and a 16-bit address offset.
 
 The SDK's AMACCFG bitfield defines enable at bit 0 and a separate mode bit at bit 2. Accumulator 0 has a two-bit saturation mode at bits 8..9 and a rounding-mode bit at bit 10; accumulator 1 has corresponding fields at bits 16..17 and bit 18. The saturation modes are documented as 64-bit-before-shift, 64-bit-after-shift, 32-bit-after-shift, and 16-bit-after-shift. Rounding modes are toward infinity and away from zero. AMACSTATUS exposes an overflow bit at bit 0.
 
-The current Ghidra model names the scalar accumulator and configuration SPRs but does not yet name the guard, status, and queue registers or model queue/DMA side effects. Twelve simple scalar AMUL/AMAC/AMSB word and halfword forms have native P-code; the remaining MAC/DSP rows include extraction, rounding/saturation, queue transfers, packed operations, and special address generation. Those forms must be classified and validated individually.
+The current Ghidra model names the scalar accumulator, configuration, guard, status, and queue SPRs as real register varnodes and aliases immediate and register-indexed accesses. This does not model queue/DMA instruction side effects, descriptor traversal, stride updates, or completion/overflow signaling. Twelve simple scalar AMUL/AMAC/AMSB word and halfword forms have native P-code; the remaining MAC/DSP rows include extraction, rounding/saturation, queue transfers, packed operations, and special address generation. Those forms must be classified and validated individually.
 
 Sources: [MStar AEON SPR definitions and AMAC data structures](https://github.com/jockyw2001/utopia/blob/53ee8cc121a030b8d368113ac3e966b4705770ef/UTPA2-700.0.x/projects/tools/lint/aeon_include/machine/spr_defs.h), [SDK AMAC arithmetic and extraction usage](https://github.com/longyanjun2020/SDK_pulbic/blob/c1436fa7446457e8d6547874d27ee4e34be150cf/Mercury5/proj/sc/middleware/mmaudio/amrnb_codec/src/Aeon/amrnb_com/anc_mac.h).
 ## What is deliberately not modelled yet

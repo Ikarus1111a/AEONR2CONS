@@ -449,16 +449,22 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 				b.createMemory("ram", CODE, 0x1000);
 				b.createMemory("spr", "spr:0", 0xB000);
 				int[] sprs = {
-					0x2801, 0x2802, 0x2803, 0x2808,
-					0x2809, 0x280a, 0x280b, 0x280c, 0x280d
+					0x2801, 0x2802, 0x2803, 0x2805, 0x2806, 0x2808,
+					0x2809, 0x280a, 0x280b, 0x280c, 0x280d, 0x280e,
+					0x2810, 0x2811, 0x2812, 0x2813, 0x2814,
+					0x2818, 0x2819, 0x281a, 0x281b, 0x281c
 				};
 				String[] names = {
-					"maclo", "machi", "machi2", "mulhi",
-					"amac0lo", "amac0hi", "amac1lo", "amac1hi", "amac_cfg"
+					"maclo", "machi", "machi2", "amacguard0", "amacguard1", "mulhi",
+					"amac0lo", "amac0hi", "amac1lo", "amac1hi", "amac_cfg", "amacstatus",
+					"amacq0", "amacq0_addrofs", "amacq0_stride", "amacq0_stride2", "amacq0_addrofs_stride",
+					"amacq1", "amacq1_addrofs", "amacq1_stride", "amacq1_stride2", "amacq1_addrofs_stride"
 				};
 				long[] values = {
-					0x11223344L, 0x55667788L, 0x99aabbccL, 0xdeadc0deL,
-					0x10203040L, 0x50607080L, 0x90a0b0c0L, 0xd0e0f001L, 1L
+					0x11223344L, 0x55667788L, 0x99aabbccL, 0xa1a2a3a4L, 0xb1b2b3b4L, 0xdeadc0deL,
+					0x10203040L, 0x50607080L, 0x90a0b0c0L, 0xd0e0f001L, 1L, 0x00000001L,
+					0x01020304L, 0x11121314L, 0x21222324L, 0x31323334L, 0x41424344L,
+					0x51525354L, 0x61626364L, 0x71727374L, 0x81828384L, 0x91929394L
 				};
 				byte[][] instructions = new byte[sprs.length * 4][];
 				for (int i = 0; i < sprs.length; i++) {
