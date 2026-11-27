@@ -96,9 +96,15 @@ jobs:
           export GHIDRA_INSTALL_DIR="$(echo "$HOME"/ghidra/ghidra_*)"
           xvfb-run -a ./gradlew verify
 
-      - name: Headless logs on failure
+      - name: Headless and JUnit diagnostics on failure
         if: failure()
-        run: tail -n 200 build/smoke/*.log || true
+        run: |
+          tail -n 200 build/smoke/*.log || true
+          for report in build/test-results/test/*.xml; do
+            [ -f "$report" ] || continue
+            echo "===== $report ====="
+            cat "$report"
+          done
 
       - uses: actions/upload-artifact@v7
         with:
