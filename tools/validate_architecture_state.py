@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 GENERATOR = ROOT / "tools" / "gen_sleigh.py"
 STATE_DOC = ROOT / "docs" / "architecture-state.md"
+SLEIGH = ROOT / "data" / "languages" / "aeonR2.sinc"
 
 
 def fail(message):
@@ -84,13 +85,16 @@ if dict(actual) != expected:
 # accesses, on both read and write paths. Every named alias must be routed.
 namespace = runpy.run_path(str(GENERATOR), run_name="aeon_generator_invariant_test")
 route = namespace["spr_access_semantics"]
+generated_routes = {}
 for write in (False, True):
     for immediate in (False, True):
         output = route(write, immediate)
         direction = "write" if write else "read"
-        for name in expected.values():
-            if f"<{direction}_{name}>" not in output:
-                fail(f"{direction} route missing {name}, immediate={immediate}")
+        generated_routes[direction] = output
+        for index, name in expected.items():
+            branch = f"if (n == {index}:4) goto <{direction}_{name}>;"
+            if branch not in output or f"<{direction}_{name}>" not in output:
+                fail(f"{direction} route missing {name} at SPR {index:#x}, immediate={immediate}")
         fallback = "*[spr]:4 (addr)"
         if fallback not in output:
             fail(f"{direction} route lost generic SPR fallback")
@@ -98,6 +102,18 @@ for write in (False, True):
             fail(f"{direction} immediate route uses the wrong SPR index source")
         if not immediate and "local n:4 = {A} + {PIPE};" not in output:
             fail(f"{direction} register-indexed route uses the wrong SPR index source")
+
+# The generated .sinc is the source Ghidra consumes. Check that it contains
+# the exact routing, not merely that the Python helper could generate it.
+sinc = SLEIGH.read_text(encoding="utf-8")
+for direction, output in generated_routes.items():
+    for index, name in expected.items():
+        if f"if (n == {index}:4) goto <{direction}_{name}>;" not in sinc:
+            fail(f"checked-in SLEIGH {direction} route missing {name} at SPR {index:#x}")
+        if f"<{direction}_{name}>" not in sinc:
+            fail(f"checked-in SLEIGH {direction} label missing for {name}")
+    if "*[spr]:4 (addr)" not in sinc:
+        fail("checked-in SLEIGH lost generic SPR fallback")
 
 doc = STATE_DOC.read_text(encoding="utf-8")
 for name in expected.values():
