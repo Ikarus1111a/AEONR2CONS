@@ -929,7 +929,7 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 
 	private static byte[] vectorWordInsert(int destination, int source, int half) {
 		int word = (0x2d << 26) | (destination << 21) | (source << 16) |
-			(8 << 11) | (half << 11) | 0x202;
+			(half << 11) | 0x202;
 		return bytes((word >>> 24) & 0xff, (word >>> 16) & 0xff,
 			(word >>> 8) & 0xff, word & 0xff);
 	}
