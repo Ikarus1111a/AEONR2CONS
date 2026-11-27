@@ -115,11 +115,29 @@ for direction, output in generated_routes.items():
     if "*[spr]:4 (addr)" not in sinc:
         fail("checked-in SLEIGH lost generic SPR fallback")
 
+# Assert that the four real constructors wire the intended index source.
+# This catches a regression where the helper is correct but the committed
+# .sinc attaches the wrong operand or a stale generated body.
+constructor_sources = {
+    ":b.mtspri ": "local n:4 = g_U_5_20;",
+    ":b.mfspri ": "local n:4 = g_U_5_20;",
+    ":b.mtspr ": "local n:4 = RD_g_A_16_20 + g_PIPE_4_15;",
+    ":b.mfspr ": "local n:4 = RD_g_A_16_20 + g_PIPE_4_15;",
+}
+for constructor, source in constructor_sources.items():
+    lines = [line for line in sinc.splitlines() if line.startswith(constructor)]
+    if len(lines) != 1:
+        fail(f"expected exactly one checked-in constructor {constructor.strip()}")
+    if source not in lines[0]:
+        fail(f"{constructor.strip()} uses an incorrect SPR index source")
+    if "local addr:4 = n * 4;" not in lines[0]:
+        fail(f"{constructor.strip()} no longer scales SPR index to byte address")
+
 doc = STATE_DOC.read_text(encoding="utf-8")
 for name in expected.values():
     if name not in doc:
         fail(f"architecture-state.md does not document {name}")
-for fragment in ("32–47", "48–63", "64–79", "0x2801", "0x281c"):
+for fragment in ("32–47", "48–63", "64–79", "0x2801", "0x281C"):
     if fragment not in doc:
         fail(f"architecture-state.md is missing map evidence {fragment!r}")
 
