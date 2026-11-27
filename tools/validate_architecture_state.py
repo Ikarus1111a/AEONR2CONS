@@ -103,7 +103,7 @@ doc = STATE_DOC.read_text(encoding="utf-8")
 for name in expected.values():
     if name not in doc:
         fail(f"architecture-state.md does not document {name}")
-for fragment in ("32–47", "48–63", "64–79", "0x2801", "0x281C"):
+for fragment in ("32–47", "48–63", "64–79", "0x2801", "0x281c"):
     if fragment not in doc:
         fail(f"architecture-state.md is missing map evidence {fragment!r}")
 
