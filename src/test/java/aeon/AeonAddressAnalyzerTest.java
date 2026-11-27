@@ -844,7 +844,7 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 					vectorGprExtract(4, 1, 0, 0x000), // unsigned halfword lane 0
 					vectorGprExtract(5, 1, 1, 0x180), // signed byte lane 1
 					vectorGprExtract(6, 1, 1, 0x100), // unsigned byte lane 1
-					vectorGprExtract(7, 1, 0, 0x200), // low 32-bit word
+					vectorGprExtract(7, 1, 8, 0x200), // low 32-bit word
 					vectorMask(8, 1),                 // sign bits of four halfwords
 					vectorInsert(14, 9, 5, 0x002),    // insert r9 low halfword in lanes 0,2
 					vectorDuplicate(10, 1, 2),         // broadcast halfword 2
