@@ -536,7 +536,7 @@ SEMANTICS["mv.abs"] = vector_abs_semantics()
 SEMANTICS["mv.upckl"] = vector_unpack_semantics(False)
 SEMANTICS["mv.upckh"] = vector_unpack_semantics(True)
 def vector_insert_semantics():
-    statements = ["local source:2 = {A}[0,16];"]
+    statements = ["local source:2 = {A}:2;"]
     wide = []
     for lane in range(4):
         offset = lane * 16
