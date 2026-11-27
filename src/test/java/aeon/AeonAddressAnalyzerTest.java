@@ -831,6 +831,109 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 		}
 	}
 
+	/** Scalar extraction/insertion, broadcast, mask, and concat preserve exact lane selection. */
+	@Test
+	public void vectorScalarTransfersAndPackingAreNative() throws Exception {
+		BigInteger mask64 = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE);
+		for (String language : List.of(BE, LE, HARVARD)) {
+			ProgramBuilder pb = new ProgramBuilder("aeon-vector-transfer", language, this);
+			try {
+				pb.createMemory("ram", CODE, 0x1000);
+				pb.setBytes(CODE, concatenate(
+					vectorGprExtract(3, 1, 0, 0x080), // signed halfword lane 0
+					vectorGprExtract(4, 1, 0, 0x000), // unsigned halfword lane 0
+					vectorGprExtract(5, 1, 1, 0x180), // signed byte lane 1
+					vectorGprExtract(6, 1, 1, 0x100), // unsigned byte lane 1
+					vectorGprExtract(7, 1, 0, 0x200), // low 32-bit word
+					vectorMask(8, 1),                 // sign bits of four halfwords
+					vectorInsert(2, 9, 5, 0x002),     // insert r9 low halfword in lanes 0,2
+					vectorDuplicate(10, 1, 2),         // broadcast halfword 2
+					vectorConcat(11, 1, 2, 1),         // 1-byte concatenation shift
+					vectorWordInsert(12, 9, 0),        // H&0xc==0 inserts upper word
+					vectorWordInsert(13, 9, 8)         // H&0xc!=0 inserts lower word
+				));
+				EmulatorHelper emu = new EmulatorHelper(pb.getProgram());
+				try {
+					emu.writeRegister("v1", new BigInteger("7fff8000ffff8001", 16));
+					emu.writeRegister("v2", new BigInteger("1122334455667788", 16));
+					emu.writeRegister("r9", 0x12345678L);
+					emu.writeRegister("v12", new BigInteger("aabbccddeeff0011", 16));
+					emu.writeRegister("v13", new BigInteger("aabbccddeeff0011", 16));
+					emu.writeRegister("pc", 0x20000);
+					for (int i = 0; i < 11; i++) {
+						assertTrue("vector transfer instruction " + i + " failed for " + language,
+							emu.step(TaskMonitor.DUMMY));
+					}
+					assertEquals("signed halfword extract for " + language, 0xffff8001L,
+						emu.readRegister("r3").longValue() & 0xffffffffL);
+					assertEquals("unsigned halfword extract for " + language, 0x8001L,
+						emu.readRegister("r4").longValue() & 0xffffffffL);
+					assertEquals("signed byte extract for " + language, 0xffffff80L,
+						emu.readRegister("r5").longValue() & 0xffffffffL);
+					assertEquals("unsigned byte extract for " + language, 0x80L,
+						emu.readRegister("r6").longValue() & 0xffffffffL);
+					assertEquals("vector low-word transfer for " + language, 0xffff8001L,
+						emu.readRegister("r7").longValue() & 0xffffffffL);
+					assertEquals("vector sign-bit mask for " + language, 7,
+						emu.readRegister("r8").longValue() & 0xffffffffL);
+					assertEquals("selected halfword insert for " + language,
+						new BigInteger("0000567800005678", 16), emu.readRegister("v2").and(mask64));
+					assertEquals("halfword broadcast for " + language,
+						new BigInteger("8000800080008000", 16), emu.readRegister("v10").and(mask64));
+					assertEquals("byte concat for " + language,
+						new BigInteger("223344556677887f", 16), emu.readRegister("v11").and(mask64));
+					assertEquals("upper word insertion for " + language,
+						new BigInteger("12345678eeff0011", 16), emu.readRegister("v12").and(mask64));
+					assertEquals("lower word insertion for " + language,
+						new BigInteger("aabbccdd12345678", 16), emu.readRegister("v13").and(mask64));
+				}
+				finally { emu.dispose(); }
+			}
+			finally { pb.dispose(); }
+		}
+	}
+
+	private static byte[] vectorGprExtract(int destination, int vector, int immediate, int function) {
+		int word = (0x2d << 26) | (destination << 21) | (vector << 16) |
+			(immediate << 11) | (function & 0x7ff);
+		return bytes((word >>> 24) & 0xff, (word >>> 16) & 0xff,
+			(word >>> 8) & 0xff, word & 0xff);
+	}
+
+	private static byte[] vectorInsert(int destination, int source, int mask, int function) {
+		int word = (0x2d << 26) | (destination << 21) | (source << 16) |
+			(mask << 11) | (function & 0x7ff);
+		return bytes((word >>> 24) & 0xff, (word >>> 16) & 0xff,
+			(word >>> 8) & 0xff, word & 0xff);
+	}
+
+	private static byte[] vectorMask(int destination, int vector) {
+		int word = (0x2d << 26) | (destination << 21) | (vector << 16) | 0x008;
+		return bytes((word >>> 24) & 0xff, (word >>> 16) & 0xff,
+			(word >>> 8) & 0xff, word & 0xff);
+	}
+
+	private static byte[] vectorDuplicate(int destination, int source, int lane) {
+		int word = (0x2c << 26) | (destination << 21) | (source << 16) |
+			(lane << 8) | 0x042;
+		return bytes((word >>> 24) & 0xff, (word >>> 16) & 0xff,
+			(word >>> 8) & 0xff, word & 0xff);
+	}
+
+	private static byte[] vectorConcat(int destination, int left, int right, int offset) {
+		int word = (0x2c << 26) | (destination << 21) | (left << 16) |
+			(right << 11) | (offset << 8) | 0x016;
+		return bytes((word >>> 24) & 0xff, (word >>> 16) & 0xff,
+			(word >>> 8) & 0xff, word & 0xff);
+	}
+
+	private static byte[] vectorWordInsert(int destination, int source, int half) {
+		int word = (0x2d << 26) | (destination << 21) | (source << 16) |
+			(8 << 11) | (half << 11) | 0x202;
+		return bytes((word >>> 24) & 0xff, (word >>> 16) & 0xff,
+			(word >>> 8) & 0xff, word & 0xff);
+	}
+
 	private static byte[] vectorUnary(int destination, int source, int function) {
 		int word = (0x2c << 26) | (destination << 21) | (source << 16) |
 			(function & 0x7ff);
