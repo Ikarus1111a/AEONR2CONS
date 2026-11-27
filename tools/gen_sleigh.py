@@ -536,7 +536,7 @@ SEMANTICS["mv.abs"] = vector_abs_semantics()
 SEMANTICS["mv.upckl"] = vector_unpack_semantics(False)
 SEMANTICS["mv.upckh"] = vector_unpack_semantics(True)
 def vector_insert_semantics():
-    statements = ["local source_word:4 = {A}; local source:2 = source_word[0,16];"]
+    statements = ["local source_word:4 = {A}:4; local source:2 = source_word[0,16];"]
     wide = []
     for lane in range(4):
         offset = lane * 16
@@ -614,7 +614,7 @@ SEMANTICS.update({
     ),
     # The SDK inserts rA into the low or high 32-bit word according to H&0xc.
     "mv.mtvw": (
-        "local source:4 = {A}; "
+        "local source:4 = {A}:4; "
         "local low:4 = {D}[0,32]; local high:4 = {D}[32,32]; "
         "local low_new:4 = low; local high_new:4 = high; "
         "if ({H}[2,2] != 0:2) goto <mtvw_upper>; "
