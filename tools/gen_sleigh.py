@@ -148,6 +148,140 @@ def spr_access_semantics(write, immediate):
     return " ".join(lines)
 
 
+def vector_lane_semantics(width, operation):
+    """Build explicit lane-wise P-code for the 64-bit AEON SIMD register file.
+
+    width is the lane size in bytes (1 or 2). Every result is first narrowed
+    to its lane width, then reassembled, so arithmetic wraps independently in
+    each lane instead of carrying across adjacent lanes.
+    """
+    if width not in (1, 2):
+        raise ValueError("AEON SIMD lane width must be one or two bytes")
+    lane_bits = width * 8
+    lane_count = 8 // width
+    statements = []
+    wide_names = []
+
+    for lane in range(lane_count):
+        offset = lane * lane_bits
+        a = f"a{lane}"
+        b = f"b{lane}"
+        result = f"result{lane}"
+        statements.append(f"local {a}:{width} = {{A}}[{offset},{lane_bits}];")
+
+        if operation in ("add", "sub", "avg_s", "avg_u", "eq",
+                         "lt_s", "lt_u", "min_s", "max_s", "min_u", "max_u"):
+            statements.append(f"local {b}:{width} = {{B}}[{offset},{lane_bits}];")
+
+        if operation == "add":
+            expression = f"{a} + {b}"
+        elif operation == "sub":
+            expression = f"{a} - {b}"
+        elif operation in ("avg_s", "avg_u"):
+            extend = "sext" if operation == "avg_s" else "zext"
+            shift = "s>>" if operation == "avg_s" else ">>"
+            statements.append(f"local sum{lane}:4 = {extend}({a}) + {extend}({b}) + 1:4;")
+            expression = f"sum{lane} {shift} 1:4"
+        elif operation == "eq":
+            statements.append(f"local flag{lane}:1 = ({a} == {b});")
+            expression = f"-zext(flag{lane})"
+        elif operation in ("lt_s", "lt_u"):
+            comparison = "s<" if operation == "lt_s" else "<"
+            statements.append(f"local flag{lane}:1 = ({a} {comparison} {b});")
+            expression = f"-zext(flag{lane})"
+        elif operation in ("min_s", "max_s", "min_u", "max_u"):
+            comparison = "s<" if operation.endswith("_s") else "<"
+            if operation.startswith("max"):
+                comparison = "s>" if operation.endswith("_s") else ">"
+            statements.append(f"local choose{lane}:1 = ({a} {comparison} {b});")
+            statements.append(f"local mask{lane}:{width} = -zext(choose{lane});")
+            expression = f"({a} & mask{lane}) | ({b} & ~mask{lane})"
+        else:
+            raise ValueError(f"unsupported vector lane operation: {operation}")
+
+        statements.append(f"local {result}:{width} = {expression};")
+        wide = f"wide{lane}"
+        statements.append(f"local {wide}:8 = zext({result});")
+        wide_names.append(wide)
+
+    packed = " | ".join(
+        name if lane == 0 else f"({name} << {lane * lane_bits})"
+        for lane, name in enumerate(wide_names)
+    )
+    statements.append(f"{{Dw}} = {packed};")
+    return " ".join(statements)
+
+
+def vector_shift_semantics(operation):
+    """Per-16-bit variable shifts; SDK helpers clamp each lane count to 8."""
+    if operation not in ("sra", "srl", "sll"):
+        raise ValueError(f"unsupported AEON SIMD shift: {operation}")
+    statements = []
+    wide_names = []
+    shift = {"sra": "s>>", "srl": ">>", "sll": "<<"}[operation]
+    for lane in range(4):
+        offset = lane * 16
+        statements.extend([
+            f"local value{lane}:2 = {{A}}[{offset},16];",
+            f"local raw_count{lane}:2 = {{B}}[{offset},16];",
+            f"local count{lane}:2 = raw_count{lane} & 0xf:2;",
+            f"if (count{lane} > 8:2) goto <clamp_shift_{lane}>;",
+            f"goto <shift_ready_{lane}>;",
+            f"<clamp_shift_{lane}> count{lane} = 8:2;",
+            f"<shift_ready_{lane}> local result{lane}:2 = value{lane} {shift} count{lane};",
+            f"local wide{lane}:8 = zext(result{lane});",
+        ])
+        wide_names.append(f"wide{lane}")
+    statements.append("{Dw} = " + " | ".join(
+        name if lane == 0 else f"({name} << {lane * 16})"
+        for lane, name in enumerate(wide_names)
+    ) + ";")
+    return " ".join(statements)
+
+
+def vector_abs_semantics():
+    """Signed 16-bit absolute value with two's-complement lane wrapping."""
+    statements = []
+    wide_names = []
+    for lane in range(4):
+        offset = lane * 16
+        statements.extend([
+            f"local value{lane}:2 = {{A}}[{offset},16];",
+            f"local result{lane}:2 = value{lane};",
+            f"if (value{lane} s< 0:2) goto <abs_negative_{lane}>;",
+            f"goto <abs_done_{lane}>;",
+            f"<abs_negative_{lane}> result{lane} = -value{lane};",
+            f"<abs_done_{lane}> local wide{lane}:8 = zext(result{lane});",
+        ])
+        wide_names.append(f"wide{lane}")
+    statements.append("{Dw} = " + " | ".join(
+        name if lane == 0 else f"({name} << {lane * 16})"
+        for lane, name in enumerate(wide_names)
+    ) + ";")
+    return " ".join(statements)
+
+
+def vector_unpack_semantics(high):
+    """Zero-extend four selected bytes into four 16-bit lanes."""
+    statements = []
+    wide_names = []
+    base = 4 if high else 0
+    for lane in range(4):
+        source_byte = base + lane
+        offset = source_byte * 8
+        statements.extend([
+            f"local byte{lane}:1 = {{A}}[{offset},8];",
+            f"local result{lane}:2 = zext(byte{lane});",
+            f"local wide{lane}:8 = zext(result{lane});",
+        ])
+        wide_names.append(f"wide{lane}")
+    statements.append("{Dw} = " + " | ".join(
+        name if lane == 0 else f"({name} << {lane * 16})"
+        for lane, name in enumerate(wide_names)
+    ) + ";")
+    return " ".join(statements)
+
+
 # ---------------------------------------------------------------- semantics --
 # Placeholders: {Xw} write form of register letter X, {X} read form (r0 reads
 # as 0), immediates by letter id. {next} = inst_next, {this} = inst_start.
@@ -370,7 +504,37 @@ SEMANTICS = {
                   '{Dw} = (x + {B}) s/ d;'),
     'bg.divlru': ('local x:4 = ({A} << {b}) * 2; local d:4 = {B} * 2; '
                   '{Dw} = (x + {B}) / d;'),
+
 }
+
+# Native semantics derived from the SDK's 64-bit __m64 compatibility model.
+# These operations are lane-local: no carry/borrow crosses a lane boundary.
+for _name in ("mv.add", "mv.addu"):
+    SEMANTICS[_name] = vector_lane_semantics(2, "add")
+for _name in ("mv.add.b", "mv.addu.b"):
+    SEMANTICS[_name] = vector_lane_semantics(1, "add")
+for _name in ("mv.sub", "mv.subu"):
+    SEMANTICS[_name] = vector_lane_semantics(2, "sub")
+for _name in ("mv.sub.b", "mv.subu.b"):
+    SEMANTICS[_name] = vector_lane_semantics(1, "sub")
+
+for _name, _width, _operation in (
+    ("mv.avg", 2, "avg_s"), ("mv.avgu", 2, "avg_u"),
+    ("mv.avg.b", 1, "avg_s"), ("mv.avgu.b", 1, "avg_u"),
+    ("mv.seq", 2, "eq"), ("mv.seq.b", 1, "eq"),
+    ("mv.slt", 2, "lt_s"), ("mv.sltu", 2, "lt_u"),
+    ("mv.slt.b", 1, "lt_s"), ("mv.sltu.b", 1, "lt_u"),
+    ("mv.min", 2, "min_s"), ("mv.minu", 2, "min_u"),
+    ("mv.max", 2, "max_s"), ("mv.maxu", 2, "max_u"),
+):
+    SEMANTICS[_name] = vector_lane_semantics(_width, _operation)
+
+SEMANTICS["mv.sra"] = vector_shift_semantics("sra")
+SEMANTICS["mv.srl"] = vector_shift_semantics("srl")
+SEMANTICS["mv.sll"] = vector_shift_semantics("sll")
+SEMANTICS["mv.abs"] = vector_abs_semantics()
+SEMANTICS["mv.upckl"] = vector_unpack_semantics(False)
+SEMANTICS["mv.upckh"] = vector_unpack_semantics(True)
 
 # Opcodes whose display repeats the destination as a source (objdump prints the
 # two-operand bt. forms in three-operand form).
