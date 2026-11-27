@@ -18,8 +18,8 @@ semantics are emitted as lane-local SLEIGH P-code, rather than opaque
   `INT16_MIN` edge case)
 - Low/high byte unpack to zero-extended halfword lanes
 - Scalar extraction (signed/unsigned halfword and byte, plus low-word transfer)
-- Scalar-to-vector lane insertion, sign-bit mask extraction, and halfword broadcast
-- 64-bit byte concatenation and low/high 32-bit scalar insertion
+- Sign-bit mask extraction and halfword broadcast
+- 64-bit byte concatenation
 
 The operation formulas are based on the independent MStar SDK's AEON
 `__m64` compatibility routines. Those routines are evidence for intended
@@ -29,8 +29,8 @@ and that the committed SLEIGH constructors contain native P-code.
 
 ## Explicitly not claimed complete
 
-Other vector instructions—including multiply/accumulate, packing/extraction,
-lane insertion, clipping, complex OPT/OPC/OPV/OPM composites, queue-memory
+Other vector instructions—including scalar-to-vector halfword/word insertion,
+multiply/accumulate, clipping, complex OPT/OPC/OPV/OPM composites, queue-memory
 loads/stores, and several reduction/special operations—remain opaque or need
 additional work. Some SDK helper implementations are marked unsupported or
 have implementation-specific endian assumptions; they must not be translated
