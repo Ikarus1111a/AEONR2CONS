@@ -77,13 +77,19 @@ if len(actual_indices) != len(set(actual_indices)):
     fail("duplicate SPR index in generator")
 if len(actual_names) != len(set(actual_names)):
     fail("duplicate SPR register name in generator")
-if dict(actual) != expected:
-    missing = sorted(set(expected.items()) - set(actual))
-    extra = sorted(set(actual) - set(expected.items()))
-    fail(f"SPR map differs; missing={missing}, extra={extra}")
+# The literal portion intentionally excludes the three exception
+# banks, which spr_access_semantics appends with a generated range loop.
+exception_indices = set(range(32, 48)) | set(range(48, 64)) | set(range(64, 80))
+expected_literal = {index: name for index, name in expected.items()
+                    if index not in exception_indices}
+if dict(actual) != expected_literal:
+    missing = sorted(set(expected_literal.items()) - set(actual))
+    extra = sorted(set(actual) - set(expected_literal.items()))
+    fail(f"literal SPR map differs; missing={missing}, extra={extra}")
 
 # Exercise the actual generator function for immediate and register-indexed
-# accesses, on both read and write paths. Every named alias must be routed.
+# accesses, on both read and write paths. Comparing the emitted branch map
+# against the independent expected map also verifies the dynamic bank loop.
 namespace = runpy.run_path(str(GENERATOR), run_name="aeon_generator_invariant_test")
 route = namespace["spr_access_semantics"]
 generated_routes = {}
@@ -92,6 +98,12 @@ for write in (False, True):
         output = route(write, immediate)
         direction = "write" if write else "read"
         generated_routes[direction] = output
+        emitted = re.findall(r"if \\(n == (\\d+):4\\) goto <" + direction + r"_([a-zA-Z0-9_]+)>;", output)
+        emitted_indices = [int(index) for index, _ in emitted]
+        if len(emitted_indices) != len(set(emitted_indices)):
+            fail(f"{direction} route contains duplicate SPR comparisons")
+        if dict((int(index), name) for index, name in emitted) != expected:
+            fail(f"{direction} route does not match the complete expected SPR map")
         for index, name in expected.items():
             branch = f"if (n == {index}:4) goto <{direction}_{name}>;"
             if branch not in output or f"<{direction}_{name}>" not in output:
