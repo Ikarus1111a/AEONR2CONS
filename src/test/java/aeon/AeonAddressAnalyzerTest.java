@@ -787,6 +787,57 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 		}
 	}
 
+	/** Variable shifts clamp each halfword's count independently; unpack and abs preserve lane boundaries. */
+	@Test
+	public void vectorShiftAbsAndUnpackMatchSdkLaneRules() throws Exception {
+		BigInteger mask64 = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE);
+		for (String language : List.of(BE, LE, HARVARD)) {
+			ProgramBuilder pb = new ProgramBuilder("aeon-vector-shift-pack", language, this);
+			try {
+				pb.createMemory("ram", CODE, 0x1000);
+				pb.setBytes(CODE, concatenate(
+					vectorInstruction(3, 1, 2, 0x092), // mv.sra
+					vectorInstruction(4, 1, 2, 0x022), // mv.srl
+					vectorInstruction(5, 1, 2, 0x032), // mv.sll
+					vectorUnary(6, 1, 0x008),           // mv.abs
+					vectorUnary(7, 1, 0x014),           // mv.upckl
+					vectorUnary(8, 1, 0x01c)            // mv.upckh
+				));
+				EmulatorHelper emu = new EmulatorHelper(pb.getProgram());
+				try {
+					emu.writeRegister("v1", new BigInteger("7fff8000ffff8001", 16));
+					emu.writeRegister("v2", new BigInteger("000f000400010000", 16));
+					emu.writeRegister("pc", 0x20000);
+					for (int i = 0; i < 6; i++) {
+						assertTrue("vector shift/pack instruction " + i + " failed for " + language,
+							emu.step(TaskMonitor.DUMMY));
+					}
+					assertEquals("signed shift clamps lane counts at 8 for " + language,
+						new BigInteger("7fffff80ffffc000", 16), emu.readRegister("v3").and(mask64));
+					assertEquals("logical shift clamps lane counts at 8 for " + language,
+						new BigInteger("7fff0080000f4000", 16), emu.readRegister("v4").and(mask64));
+					assertEquals("left shift wraps per halfword for " + language,
+						new BigInteger("7fff0000fff00002", 16), emu.readRegister("v5").and(mask64));
+					assertEquals("signed halfword absolute value wraps INT16_MIN for " + language,
+						new BigInteger("7fff800000018001", 16), emu.readRegister("v6").and(mask64));
+					assertEquals("low-byte unpack for " + language,
+						new BigInteger("00ff00ff00800001", 16), emu.readRegister("v7").and(mask64));
+					assertEquals("high-byte unpack for " + language,
+						new BigInteger("007f00ff00800000", 16), emu.readRegister("v8").and(mask64));
+				}
+				finally { emu.dispose(); }
+			}
+			finally { pb.dispose(); }
+		}
+	}
+
+	private static byte[] vectorUnary(int destination, int source, int function) {
+		int word = (0x2c << 26) | (destination << 21) | (source << 16) |
+			(function & 0x7ff);
+		return bytes((word >>> 24) & 0xff, (word >>> 16) & 0xff,
+			(word >>> 8) & 0xff, word & 0xff);
+	}
+
 	private static byte[] vectorInstruction(int destination, int left, int right, int function) {
 		int word = (0x2c << 26) | (destination << 21) | (left << 16) |
 			(right << 11) | (function & 0x7ff);
