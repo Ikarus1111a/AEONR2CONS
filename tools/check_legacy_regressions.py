@@ -142,7 +142,9 @@ require("CID=sr[28,4]" in COMMON, "SR context-ID bits are represented")
 
 # MStar SDK codec fallbacks define word and signed halfword AMAC behavior.
 for mnemonic in ("bg.amul", "bg.amac", "bg.amsb", "bg.amulu", "bg.amacu", "bg.amsbu", "bg.amul_lh", "bg.amac_lh", "bg.amsb_lh", "bg.amul_hh", "bg.amac_hh", "bg.amsb_hh"):
-    require(f"'{mnemonic}':" in GEN and mnemonic in GEN[GEN.index("MAC_OPERATIONS = {"):GEN.index("for _name,")],
+    mac_start = GEN.index("MAC_OPERATIONS = {")
+    mac_end = GEN.index("for _name,", mac_start)
+    require(f"'{mnemonic}':" in GEN and mnemonic in GEN[mac_start:mac_end],
             f"generator has native AMAC semantic for {mnemonic}")
 for index, name in (
     (10245, "amacguard0"), (10246, "amacguard1"),
