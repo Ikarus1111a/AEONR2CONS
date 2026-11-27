@@ -846,7 +846,7 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 					vectorGprExtract(6, 1, 1, 0x100), // unsigned byte lane 1
 					vectorGprExtract(7, 1, 0, 0x200), // low 32-bit word
 					vectorMask(8, 1),                 // sign bits of four halfwords
-					vectorInsert(2, 9, 5, 0x002),     // insert r9 low halfword in lanes 0,2
+					vectorInsert(14, 9, 5, 0x002),    // insert r9 low halfword in lanes 0,2
 					vectorDuplicate(10, 1, 2),         // broadcast halfword 2
 					vectorConcat(11, 1, 2, 1),         // 1-byte concatenation shift
 					vectorWordInsert(12, 9, 0),        // H&0xc==0 inserts upper word
@@ -877,7 +877,7 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 					assertEquals("vector sign-bit mask for " + language, 7,
 						emu.readRegister("r8").longValue() & 0xffffffffL);
 					assertEquals("selected halfword insert for " + language,
-						new BigInteger("0000567800005678", 16), emu.readRegister("v2").and(mask64));
+						new BigInteger("0000567800005678", 16), emu.readRegister("v14").and(mask64));
 					assertEquals("halfword broadcast for " + language,
 						new BigInteger("8000800080008000", 16), emu.readRegister("v10").and(mask64));
 					assertEquals("byte concat for " + language,
