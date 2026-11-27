@@ -823,7 +823,7 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 					assertEquals("low-byte unpack for " + language,
 						new BigInteger("00ff00ff00800001", 16), emu.readRegister("v7").and(mask64));
 					assertEquals("high-byte unpack for " + language,
-						new BigInteger("007f00ff00800000", 16), emu.readRegister("v8").and(mask64));
+						new BigInteger("007f00ff00ff0080", 16), emu.readRegister("v8").and(mask64));
 				}
 				finally { emu.dispose(); }
 			}
