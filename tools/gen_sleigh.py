@@ -181,7 +181,8 @@ def vector_lane_semantics(width, operation):
             extend = "sext" if operation == "avg_s" else "zext"
             shift = "s>>" if operation == "avg_s" else ">>"
             statements.append(f"local sum{lane}:4 = {extend}({a}) + {extend}({b}) + 1:4;")
-            expression = f"sum{lane} {shift} 1:4"
+            statements.append(f"local shifted{lane}:4 = sum{lane} {shift} 1:4;")
+            expression = f"shifted{lane}[0,{lane_bits}]"
         elif operation == "eq":
             statements.append(f"local flag{lane}:1 = ({a} == {b});")
             expression = f"-zext(flag{lane})"
