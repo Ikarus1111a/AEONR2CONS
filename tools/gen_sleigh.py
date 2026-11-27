@@ -603,8 +603,8 @@ SEMANTICS.update({
     ),
     "mv.mfvw": "{Dw} = {A}[0,32];",
     "mv.mmk": (
-        "{Dw} = (zext({A}[48,1]) << 3) | (zext({A}[32,1]) << 2) | "
-        "(zext({A}[16,1]) << 1) | zext({A}[0,1]);"
+        "{Dw} = (zext({A}[63,1]) << 3) | (zext({A}[47,1]) << 2) | "
+        "(zext({A}[31,1]) << 1) | zext({A}[15,1]);"
     ),
     # Insert the GPR's low halfword into each lane selected by H[3:0].
     # MV_DUP selects one of four halfwords and broadcasts it to all lanes.
