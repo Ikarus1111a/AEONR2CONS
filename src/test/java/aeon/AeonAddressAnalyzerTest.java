@@ -806,7 +806,7 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 				EmulatorHelper emu = new EmulatorHelper(pb.getProgram());
 				try {
 					emu.writeRegister("v1", new BigInteger("7fff8000ffff8001", 16));
-					emu.writeRegister("v2", new BigInteger("000f000400010000", 16));
+					emu.writeRegister("v2", new BigInteger("0000000f00040001", 16));
 					emu.writeRegister("pc", 0x20000);
 					for (int i = 0; i < 6; i++) {
 						assertTrue("vector shift/pack instruction " + i + " failed for " + language,
@@ -819,7 +819,7 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 					assertEquals("left shift wraps per halfword for " + language,
 						new BigInteger("7fff0000fff00002", 16), emu.readRegister("v5").and(mask64));
 					assertEquals("signed halfword absolute value wraps INT16_MIN for " + language,
-						new BigInteger("7fff800000018001", 16), emu.readRegister("v6").and(mask64));
+						new BigInteger("7fff800000017fff", 16), emu.readRegister("v6").and(mask64));
 					assertEquals("low-byte unpack for " + language,
 						new BigInteger("00ff00ff00800001", 16), emu.readRegister("v7").and(mask64));
 					assertEquals("high-byte unpack for " + language,
