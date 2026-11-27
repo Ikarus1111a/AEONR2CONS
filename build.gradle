@@ -229,3 +229,13 @@ tasks.register('architectureStateTest', Exec) {
 }
 tasks.named('verify') { dependsOn 'architectureStateTest' }
 
+// Verify that native SIMD semantics correspond to real ISA entries and are
+// present in the generated SLEIGH file (not silently replaced by CALLOTHER).
+tasks.register('simdSemanticsTest', Exec) {
+	group = 'verification'
+	description = 'Check native SIMD semantic coverage and generated P-code'
+	commandLine 'python3', file('tools/validate_simd_semantics.py').absolutePath
+}
+tasks.named('verify') { dependsOn 'simdSemanticsTest' }
+
+
