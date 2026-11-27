@@ -535,6 +535,93 @@ SEMANTICS["mv.sll"] = vector_shift_semantics("sll")
 SEMANTICS["mv.abs"] = vector_abs_semantics()
 SEMANTICS["mv.upckl"] = vector_unpack_semantics(False)
 SEMANTICS["mv.upckh"] = vector_unpack_semantics(True)
+def vector_insert_semantics():
+    statements = ["local source:2 = {A}[0,16];"]
+    wide = []
+    for lane in range(4):
+        offset = lane * 16
+        statements.extend([
+            f"local old{lane}:2 = {{D}}[{offset},16];",
+            f"local result{lane}:2 = old{lane};",
+            f"if (({{H}} & {1 << lane}) != 0) goto <mtv_set_{lane}>;",
+            f"goto <mtv_done_{lane}>;",
+            f"<mtv_set_{lane}> result{lane} = source;",
+            f"<mtv_done_{lane}> local wide{lane}:8 = zext(result{lane});",
+        ])
+        wide.append(f"wide{lane}")
+    statements.append("{Dw} = " + " | ".join(
+        name if lane == 0 else f"({name} << {lane * 16})"
+        for lane, name in enumerate(wide)
+    ) + ";")
+    return " ".join(statements)
+
+
+def vector_duplicate_semantics():
+    statements = [
+        "local shift:4 = ({d} & 3) * 16;",
+        "local shifted:8 = {A} >> shift;",
+        "local selected:2 = shifted[0,16];",
+    ]
+    wide = []
+    for lane in range(4):
+        statements.append(f"local wide{lane}:8 = zext(selected);")
+        wide.append(f"wide{lane}")
+    statements.append("{Dw} = " + " | ".join(
+        name if lane == 0 else f"({name} << {lane * 16})"
+        for lane, name in enumerate(wide)
+    ) + ";")
+    return " ".join(statements)
+
+
+
+SEMANTICS.update({
+    # Scalar/vector transfers: the immediate selects a 16-bit lane (H is
+    # byte-indexed and must be even) or a byte lane (H selects byte 0..7).
+    "mv.mfv": (
+        "local shift:4 = ({H} >> 1) * 16; "
+        "local shifted:8 = {A} >> shift; local lane:2 = shifted[0,16]; "
+        "{Dw} = sext(lane);"
+    ),
+    "mv.mfvu": (
+        "local shift:4 = ({H} >> 1) * 16; "
+        "local shifted:8 = {A} >> shift; local lane:2 = shifted[0,16]; "
+        "{Dw} = zext(lane);"
+    ),
+    "mv.mfv.b": (
+        "local shift:4 = (({H} >> 1) * 16) + (({H} & 1) * 8); "
+        "local shifted:8 = {A} >> shift; local lane:1 = shifted[0,8]; "
+        "{Dw} = sext(lane);"
+    ),
+    "mv.mfvu.b": (
+        "local shift:4 = (({H} >> 1) * 16) + (({H} & 1) * 8); "
+        "local shifted:8 = {A} >> shift; local lane:1 = shifted[0,8]; "
+        "{Dw} = zext(lane);"
+    ),
+    "mv.mfvw": "{Dw} = {A}[0,32];",
+    "mv.mmk": (
+        "{Dw} = (zext({A}[48,1]) << 3) | (zext({A}[32,1]) << 2) | "
+        "(zext({A}[16,1]) << 1) | zext({A}[0,1]);"
+    ),
+    # Insert the GPR's low halfword into each lane selected by H[3:0].
+    "mv.mtv": vector_insert_semantics(),
+    # MV_DUP selects one of four halfwords and broadcasts it to all lanes.
+    "mv.dup": vector_duplicate_semantics(),
+    # SDK implementation: byte concatenation is (vB << E*8) | (vA >> (8-E)*8).
+    "mv.cat": (
+        "local left_shift:4 = {E} * 8; "
+        "local right_shift:4 = (8 - {E}) * 8; "
+        "{Dw} = ({B} << left_shift) | ({A} >> right_shift);"
+    ),
+    # The SDK inserts rA into the low or high 32-bit word according to H&0xc.
+    "mv.mtvw": (
+        "local low:4 = {D}[0,32]; local high:4 = {D}[32,32]; "
+        "local low_new:4 = low; local high_new:4 = high; "
+        "if (({H} & 0xc) != 0) goto <mtvw_upper>; "
+        "high_new = {A}; goto <mtvw_join>; "
+        "<mtvw_upper> low_new = {A}; "
+        "<mtvw_join> {Dw} = zext(low_new) | (zext(high_new) << 32);"
+    ),
+})
 
 # Opcodes whose display repeats the destination as a source (objdump prints the
 # two-operand bt. forms in three-operand form).
