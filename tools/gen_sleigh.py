@@ -543,7 +543,7 @@ def vector_insert_semantics():
         statements.extend([
             f"local old{lane}:2 = {{D}}[{offset},16];",
             f"local result{lane}:2 = old{lane};",
-            f"if (({{H}} & {1 << lane}) != 0) goto <mtv_set_{lane}>;",
+            f"if ({{H}}[{lane},1] != 0:1) goto <mtv_set_{lane}>;",
             f"goto <mtv_done_{lane}>;",
             f"<mtv_set_{lane}> result{lane} = source;",
             f"<mtv_done_{lane}> local wide{lane}:8 = zext(result{lane});",
@@ -617,7 +617,7 @@ SEMANTICS.update({
         "local source:4 = {A}; "
         "local low:4 = {D}[0,32]; local high:4 = {D}[32,32]; "
         "local low_new:4 = low; local high_new:4 = high; "
-        "if (({H} & 0xc) != 0) goto <mtvw_upper>; "
+        "if ({H}[2,2] != 0:2) goto <mtvw_upper>; "
         "high_new = source; goto <mtvw_join>; "
         "<mtvw_upper> low_new = source; "
         "<mtvw_join> local low_wide:8 = zext(low_new); "
