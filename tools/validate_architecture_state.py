@@ -6,6 +6,7 @@ standard library and runs without Ghidra or the proprietary vendor toolchain.
 """
 import ast
 import runpy
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -112,6 +113,12 @@ for direction, output in generated_routes.items():
             fail(f"checked-in SLEIGH {direction} route missing {name} at SPR {index:#x}")
         if f"<{direction}_{name}>" not in sinc:
             fail(f"checked-in SLEIGH {direction} label missing for {name}")
+        if direction == "read":
+            alias = "<read_" + name + r">\s+\S+\s*=\s*" + re.escape(name) + r"\s*;"
+        else:
+            alias = "<write_" + name + r">\s+" + re.escape(name) + r"\s*=\s*\S+\s*;"
+        if not re.search(alias, sinc):
+            fail(f"checked-in SLEIGH {direction} alias does not access {name}")
     if "*[spr]:4 (addr)" not in sinc:
         fail("checked-in SLEIGH lost generic SPR fallback")
 
