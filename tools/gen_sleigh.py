@@ -606,7 +606,6 @@ SEMANTICS.update({
         "(zext({A}[16,1]) << 1) | zext({A}[0,1]);"
     ),
     # Insert the GPR's low halfword into each lane selected by H[3:0].
-    "mv.mtv": vector_insert_semantics(),
     # MV_DUP selects one of four halfwords and broadcasts it to all lanes.
     "mv.dup": vector_duplicate_semantics(),
     # SDK implementation: byte concatenation is (vB << E*8) | (vA >> (8-E)*8).
@@ -616,18 +615,6 @@ SEMANTICS.update({
         "{Dw} = ({B} << left_shift) | ({A} >> right_shift);"
     ),
     # The SDK inserts rA into the low or high 32-bit word according to H&0xc.
-    "mv.mtvw": (
-        "local source:4 = {A}:4; "
-        "local selector:1 = {H}[2,1] | {H}[3,1]; "
-        "local mask:4 = 0:4 - zext(selector); "
-        "local low:4 = {D}[0,32]; local high:4 = {D}[32,32]; "
-        "local low_new:4 = (source & mask) | (low & ~mask); "
-        "local high_new:4 = (source & ~mask) | (high & mask); "
-        "local low_wide:8 = zext(low_new); "
-        "local high_wide:8 = zext(high_new); "
-        "local high_shifted:8 = high_wide << 32; "
-        "{Dw} = low_wide | high_shifted;"
-    ),
 })
 
 # Opcodes whose display repeats the destination as a source (objdump prints the
