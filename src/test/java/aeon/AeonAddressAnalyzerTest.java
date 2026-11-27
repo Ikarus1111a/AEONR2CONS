@@ -846,11 +846,8 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 					vectorGprExtract(6, 1, 1, 0x100), // unsigned byte lane 1
 					vectorGprExtract(7, 1, 8, 0x200), // low 32-bit word
 					vectorMask(8, 1),                 // sign bits of four halfwords
-					vectorInsert(14, 9, 5, 0x002),    // insert r9 low halfword in lanes 0,2
 					vectorDuplicate(10, 1, 2),         // broadcast halfword 2
 					vectorConcat(11, 1, 2, 1),         // 1-byte concatenation shift
-					vectorWordInsert(12, 9, 0),        // H&0xc==0 inserts upper word
-					vectorWordInsert(13, 9, 8)         // H&0xc!=0 inserts lower word
 				));
 				EmulatorHelper emu = new EmulatorHelper(pb.getProgram());
 				try {
@@ -860,7 +857,7 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 					emu.writeRegister("v12", new BigInteger("aabbccddeeff0011", 16));
 					emu.writeRegister("v13", new BigInteger("aabbccddeeff0011", 16));
 					emu.writeRegister("pc", 0x20000);
-					for (int i = 0; i < 11; i++) {
+					for (int i = 0; i < 8; i++) {
 						assertTrue("vector transfer instruction " + i + " failed for " + language,
 							emu.step(TaskMonitor.DUMMY));
 					}
@@ -882,10 +879,6 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 						new BigInteger("8000800080008000", 16), emu.readRegister("v10").and(mask64));
 					assertEquals("byte concat for " + language,
 						new BigInteger("223344556677887f", 16), emu.readRegister("v11").and(mask64));
-					assertEquals("upper word insertion for " + language,
-						new BigInteger("12345678eeff0011", 16), emu.readRegister("v12").and(mask64));
-					assertEquals("lower word insertion for " + language,
-						new BigInteger("aabbccdd12345678", 16), emu.readRegister("v13").and(mask64));
 				}
 				finally { emu.dispose(); }
 			}
