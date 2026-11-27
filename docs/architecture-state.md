@@ -47,11 +47,22 @@ Sources: [AEON SIMD reference implementation](https://github.com/longyanjun2020/
 |---:|---|---|
 | 0x2805–0x2806 | amacguard0–amacguard1 | Guard registers |
 | 0x2808 | mulhi | Multiply-high (Reko-derived name) |
-| 0x2809–0x280C | amac0lo/hi, amac1lo/hi | Accumulator words |
+| 0x2809 | amac0lo | Accumulator 0 low word |
+| 0x280A | amac0hi | Accumulator 0 high word |
+| 0x280B | amac1lo | Accumulator 1 low word |
+| 0x280C | amac1hi | Accumulator 1 high word |
 | 0x280D | amac_cfg | AMAC configuration |
 | 0x280E | amacstatus | AMAC status |
-| 0x2810–0x2814 | amacq0, Q0 offset/strides | Queue 0 state |
-| 0x2818–0x281C | amacq1, Q1 offset/strides | Queue 1 state |
+| 0x2810 | amacq0 | Queue 0 descriptor/current address |
+| 0x2811 | amacq0_addrofs | Queue 0 address offset |
+| 0x2812 | amacq0_stride | Queue 0 stride pair |
+| 0x2813 | amacq0_stride2 | Queue 0 second stride pair |
+| 0x2814 | amacq0_addrofs_stride | Queue 0 combined offset/stride |
+| 0x2818 | amacq1 | Queue 1 descriptor/current address |
+| 0x2819 | amacq1_addrofs | Queue 1 address offset |
+| 0x281A | amacq1_stride | Queue 1 stride pair |
+| 0x281B | amacq1_stride2 | Queue 1 second stride pair |
+| 0x281C | amacq1_addrofs_stride | Queue 1 combined offset/stride |
 
 A separate MStar AEON SPR header supplies the wider MAC-group map. In addition to the scalar accumulator halves and configuration register already named in SLEIGH, it defines AMULHI at 0x2808, two guard registers at 0x2805 and 0x2806, and AMACSTATUS at 0x280e. Two queue-control banks occupy 0x2810..0x2814 and 0x2818..0x281c; each has a queue word, address offset, stride, second stride, and combined offset/stride register. The queue-stride word carries two 8-bit stride values and a 16-bit address offset.
 
@@ -93,8 +104,15 @@ MStar's system SPR header defines three contiguous 16-entry banks:
 | EEAR | 48–63 | Exception effective addresses |
 | ESR | 64–79 | Saved exception status registers |
 
-These are represented as named Ghidra register varnodes (`epcr0..epcr15`,
-`eear0..eear15`, `esr0..esr15`). Immediate and register-indexed SPR accesses
+These are represented as named Ghidra register varnodes. The exact names are
+`epcr0`, `epcr1`, `epcr2`, `epcr3`, `epcr4`, `epcr5`, `epcr6`,
+`epcr7`, `epcr8`, `epcr9`, `epcr10`, `epcr11`, `epcr12`, `epcr13`,
+`epcr14`, `epcr15`; the EEAR bank is `eear0`, `eear1`, `eear2`,
+`eear3`, `eear4`, `eear5`, `eear6`, `eear7`, `eear8`, `eear9`,
+`eear10`, `eear11`, `eear12`, `eear13`, `eear14`, `eear15`; and
+the ESR bank is `esr0`, `esr1`, `esr2`, `esr3`, `esr4`, `esr5`,
+`esr6`, `esr7`, `esr8`, `esr9`, `esr10`, `esr11`, `esr12`,
+`esr13`, `esr14`, `esr15`. Immediate and register-indexed SPR accesses
 route to the corresponding varnode, while unknown SPR indices continue to use
 the generic `spr` address space. `bt.rfe` reads `epcr0` and `esr0` directly,
 so exception return and explicit SPR reads/writes share the same modeled state.
