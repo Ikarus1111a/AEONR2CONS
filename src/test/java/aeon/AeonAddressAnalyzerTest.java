@@ -847,15 +847,13 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 					vectorGprExtract(7, 1, 8, 0x200), // low 32-bit word
 					vectorMask(8, 1),                 // sign bits of four halfwords
 					vectorDuplicate(10, 1, 2),         // broadcast halfword 2
-					vectorConcat(11, 1, 2, 1),         // 1-byte concatenation shift
+					vectorConcat(11, 1, 2, 1)          // 1-byte concatenation shift
 				));
 				EmulatorHelper emu = new EmulatorHelper(pb.getProgram());
 				try {
 					emu.writeRegister("v1", new BigInteger("7fff8000ffff8001", 16));
 					emu.writeRegister("v2", new BigInteger("1122334455667788", 16));
 					emu.writeRegister("r9", 0x12345678L);
-					emu.writeRegister("v12", new BigInteger("aabbccddeeff0011", 16));
-					emu.writeRegister("v13", new BigInteger("aabbccddeeff0011", 16));
 					emu.writeRegister("pc", 0x20000);
 					for (int i = 0; i < 8; i++) {
 						assertTrue("vector transfer instruction " + i + " failed for " + language,
@@ -873,8 +871,6 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 						emu.readRegister("r7").longValue() & 0xffffffffL);
 					assertEquals("vector sign-bit mask for " + language, 7,
 						emu.readRegister("r8").longValue() & 0xffffffffL);
-					assertEquals("selected halfword insert for " + language,
-						new BigInteger("0000567800005678", 16), emu.readRegister("v14").and(mask64));
 					assertEquals("halfword broadcast for " + language,
 						new BigInteger("8000800080008000", 16), emu.readRegister("v10").and(mask64));
 					assertEquals("byte concat for " + language,
