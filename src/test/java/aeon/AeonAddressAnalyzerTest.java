@@ -737,6 +737,63 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 			.or(emu.readRegister(low).and(mask32));
 	}
 
+	/** Lane arithmetic, averages, signed min and comparisons must not leak between lanes. */
+	@Test
+	public void vectorLaneArithmeticIsWidthCorrectAndIndependent() throws Exception {
+		BigInteger mask64 = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE);
+		BigInteger a = new BigInteger("7fff8000ffff0001", 16);
+		BigInteger b = new BigInteger("00018001ffff0002", 16);
+		for (String language : List.of(BE, LE, HARVARD)) {
+			ProgramBuilder pb = new ProgramBuilder("aeon-vector-lanes", language, this);
+			try {
+				pb.createMemory("ram", CODE, 0x1000);
+				pb.setBytes(CODE, concatenate(
+					vectorInstruction(3, 1, 2, 0x10a), // mv.add: signed halfword lane add
+					vectorInstruction(4, 1, 2, 0x00a), // mv.addu: unsigned halfword add
+					vectorInstruction(5, 1, 2, 0x12a), // mv.avg: signed halfword average
+					vectorInstruction(6, 1, 2, 0x00a | (0x10 << 6)), // mv.addu.b
+					vectorInstruction(7, 1, 2, 0x21a), // mv.sub: halfword subtract
+					vectorInstruction(8, 1, 2, 0x19a), // mv.slt: signed halfword compare
+					vectorInstruction(9, 1, 2, 0x09a)  // mv.sltu: unsigned halfword compare
+				));
+				EmulatorHelper emu = new EmulatorHelper(pb.getProgram());
+				try {
+					emu.writeRegister("v1", a);
+					emu.writeRegister("v2", b);
+					emu.writeRegister("pc", 0x20000);
+					for (int i = 0; i < 7; i++) {
+						assertTrue("vector lane instruction " + i + " failed for " + language,
+							emu.step(TaskMonitor.DUMMY));
+					}
+					assertEquals("halfword add wraps lane-local for " + language,
+						new BigInteger("80008000fffe0003", 16), emu.readRegister("v3").and(mask64));
+					assertEquals("halfword unsigned add for " + language,
+						new BigInteger("80008000fffe0003", 16), emu.readRegister("v4").and(mask64));
+					assertEquals("rounded signed halfword average for " + language,
+						new BigInteger("40008000ffff0002", 16), emu.readRegister("v5").and(mask64));
+					assertEquals("byte add independently wraps every byte for " + language,
+						new BigInteger("00028001fffe0003", 16), emu.readRegister("v6").and(mask64));
+					assertEquals("halfword subtract for " + language,
+						new BigInteger("7ffe7fff000000ffff", 16).and(mask64),
+						emu.readRegister("v7").and(mask64));
+					assertEquals("signed compare lane masks for " + language,
+						new BigInteger("00000000ffffffff", 16), emu.readRegister("v8").and(mask64));
+					assertEquals("unsigned compare lane masks for " + language,
+						new BigInteger("00000000ffffffff", 16), emu.readRegister("v9").and(mask64));
+				}
+				finally { emu.dispose(); }
+			}
+			finally { pb.dispose(); }
+		}
+	}
+
+	private static byte[] vectorInstruction(int destination, int left, int right, int function) {
+		int word = (0x2c << 26) | (destination << 21) | (left << 16) |
+			(right << 11) | (function & 0x7ff);
+		return bytes((word >>> 24) & 0xff, (word >>> 16) & 0xff,
+			(word >>> 8) & 0xff, word & 0xff);
+	}
+
 	private static byte[] vectorLogical(int destination, int left, int right, int subOpcode) {
 		int word = (0x2c << 26) | (destination << 21) | (left << 16) |
 			(right << 11) | (subOpcode & 0x3f);
