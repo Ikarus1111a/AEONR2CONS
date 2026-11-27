@@ -779,7 +779,7 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 					assertEquals("signed compare lane masks for " + language,
 						new BigInteger("0000ffff0000ffff", 16), emu.readRegister("v8").and(mask64));
 					assertEquals("unsigned compare lane masks for " + language,
-						new BigInteger("00000000ffffffff", 16), emu.readRegister("v9").and(mask64));
+						new BigInteger("0000ffff0000ffff", 16), emu.readRegister("v9").and(mask64));
 				}
 				finally { emu.dispose(); }
 			}
@@ -815,7 +815,7 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 					assertEquals("signed shift clamps lane counts at 8 for " + language,
 						new BigInteger("7fffff80ffffc000", 16), emu.readRegister("v3").and(mask64));
 					assertEquals("logical shift clamps lane counts at 8 for " + language,
-						new BigInteger("7fff0080000f4000", 16), emu.readRegister("v4").and(mask64));
+						new BigInteger("7fff00800fff4000", 16), emu.readRegister("v4").and(mask64));
 					assertEquals("left shift wraps per halfword for " + language,
 						new BigInteger("7fff0000fff00002", 16), emu.readRegister("v5").and(mask64));
 					assertEquals("signed halfword absolute value wraps INT16_MIN for " + language,
