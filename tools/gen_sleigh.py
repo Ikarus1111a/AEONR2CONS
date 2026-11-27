@@ -146,7 +146,7 @@ def spr_access_semantics(write, immediate):
 # as 0), immediates by letter id. {next} = inst_next, {this} = inst_start.
 SEMANTICS = {
     # --- moves and arithmetic -------------------------------------------
-    # Whole-vector bitwise operations are defined across all 128 bits; they
+    # Whole-vector bitwise operations are defined across all 64 bits; they
     # do not depend on lane width or signedness.
     'mv.and':    '{Dw} = {A} & {B};',
     'mv.or':     '{Dw} = {A} | {B};',

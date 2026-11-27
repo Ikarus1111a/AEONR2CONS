@@ -626,12 +626,12 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 			(word >>> 8) & 0xff, word & 0xff);
 	}
 
-	/** Whole-register SIMD bitwise instructions use native 128-bit P-code. */
+	/** Whole-register SIMD bitwise instructions operate on 64-bit vector registers. */
 	@Test
-	public void vectorLogicalOperationsUseFull128BitRegisters() throws Exception {
-		BigInteger a = new BigInteger("fedcba98765432100123456789abcdef", 16);
-		BigInteger b = new BigInteger("0ff00ff00ff00ff0fedcba9876543210", 16);
-		BigInteger mask = BigInteger.ONE.shiftLeft(128).subtract(BigInteger.ONE);
+	public void vectorLogicalOperationsUseFull64BitRegisters() throws Exception {
+		BigInteger a = new BigInteger("fedcba9876543210", 16);
+		BigInteger b = new BigInteger("0ff00ff00ff00ff0", 16);
+		BigInteger mask = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE);
 		for (String language : List.of(BE, LE, HARVARD)) {
 			ProgramBuilder pb = new ProgramBuilder("aeon-vector-logic", language, this);
 			try {
@@ -650,17 +650,13 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 						assertTrue("vector logical instruction " + i + " failed for " + language,
 							emu.step(TaskMonitor.DUMMY));
 					}
-					assertEquals("128-bit vector AND for " + language, a.and(b), emu.readRegister("v3").and(mask));
-					assertEquals("128-bit vector OR for " + language, a.or(b), emu.readRegister("v4").and(mask));
-					assertEquals("128-bit vector XOR for " + language, a.xor(b), emu.readRegister("v5").and(mask));
+					assertEquals("64-bit vector AND for " + language, a.and(b), emu.readRegister("v3").and(mask));
+					assertEquals("64-bit vector OR for " + language, a.or(b), emu.readRegister("v4").and(mask));
+					assertEquals("64-bit vector XOR for " + language, a.xor(b), emu.readRegister("v5").and(mask));
 				}
-				finally {
-					emu.dispose();
-				}
+				finally { emu.dispose(); }
 			}
-			finally {
-				pb.dispose();
-			}
+			finally { pb.dispose(); }
 		}
 	}
 

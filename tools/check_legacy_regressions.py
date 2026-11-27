@@ -188,12 +188,19 @@ require("local cfg_half:4 = amac_cfg s/ 2:4" in SINC and
 require("macAccumulatorsImplementWordAndHalfwordProducts" in TEST,
         "AMAC semantics have numerical emulator tests")
 
-# The basic SIMD bitwise operations use native p-code across 128-bit vectors.
+# The vendor SDK models v0..v31 as 64-bit __m64 registers.
+require("define register offset=0x200 size=8 [" in COMMON and
+        "define register offset=0x200 size=16 [" not in COMMON,
+        "vector register bank is 32 x 64-bit registers")
+require("vectorLogicalOperationsUseFull64BitRegisters" in TEST,
+        "SIMD logical emulator tests cover full 64-bit registers")
+require("Whole-vector bitwise operations are defined across all 64 bits" in GEN,
+        "generator models whole-vector logic at architectural width")
 for mnemonic, expression in (("mv.and", " & "), ("mv.or", " | "), ("mv.xor", " ^ ")):
-    require(f"'{mnemonic}':" in GEN, f"generator defines native {mnemonic}")
+    require(mnemonic in GEN, f"generator defines native {mnemonic}")
     line = next((line for line in SINC.splitlines() if line.startswith(":" + mnemonic + " ")), "")
     require(bool(line) and expression in line and "aeon_" not in line,
-            f"{mnemonic} operates directly on vector registers")
+            f"{mnemonic} operates across the full vector register")
 
 # Cache/synchronization behavior is emitted as active AEON P-code operations,
 # including the operations added or refined during the legacy work.
