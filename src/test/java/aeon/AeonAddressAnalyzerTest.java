@@ -4,6 +4,7 @@ import static org.junit.Assert.*;
 
 import java.io.File;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -263,18 +264,22 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 			try {
 				b.createMemory("ram", CODE, 0x1000);
 				b.createMemory("spr", "spr:0", 0x200);
-				// bt.rfe (instruction encoding is big-endian in every AEON language).
-				b.setBytes(CODE, bytes(0x84, 0x00));
 				int savedPc = 0x20100;
 				int savedSr = 0x00000600;
-				boolean little = !language.equals(BE);
-				b.setBytes("spr:0x80", wordBytes(savedPc, little));   // EPCR0
-				b.setBytes("spr:0x100", wordBytes(savedSr, little)); // ESR0
+				// Populate the exception registers through mtspr, then execute RFE.
+				b.setBytes(CODE, concatenate(
+					sprImmediate(true, 3, 32),  // EPCR0 = r3
+					sprImmediate(true, 4, 64),  // ESR0 = r4
+					bytes(0x84, 0x00)));         // bt.rfe
 				Program p = b.getProgram();
 				EmulatorHelper emu = new EmulatorHelper(p);
 				try {
 					emu.writeRegister("sr", 0);
+					emu.writeRegister("r3", savedPc);
+					emu.writeRegister("r4", savedSr);
 					emu.writeRegister("pc", 0x20000);
+					assertTrue("EPCR0 mtspr failed for " + language, emu.step(TaskMonitor.DUMMY));
+					assertTrue("ESR0 mtspr failed for " + language, emu.step(TaskMonitor.DUMMY));
 					assertTrue("rfe failed for " + language, emu.step(TaskMonitor.DUMMY));
 					assertEquals("restored PC for " + language, savedPc,
 						emu.getExecutionAddress().getOffset());
@@ -377,36 +382,52 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 	}
 
 
-	/** MStar names the three saved MAC words in its AEON R2 SPR header and vector save/restore code. */
+	/** The MStar SYS SPR banks are architectural registers shared by SPR access and RFE. */
 	@Test
-	public void macAccumulatorSprsAreNamedArchitecturalState() throws Exception {
+	public void exceptionSprBanksAreNamedArchitecturalState() throws Exception {
 		for (String language : List.of(BE, LE, HARVARD)) {
-			ProgramBuilder b = new ProgramBuilder("aeon-mac-sprs", language, this);
+			ProgramBuilder b = new ProgramBuilder("aeon-exception-sprs", language, this);
 			try {
-				b.createMemory("ram", CODE, 0x1000);
-				b.createMemory("spr", "spr:0", 0xB000);
-				int[] sprs = {0x2801, 0x2802, 0x2803, 0x2808};
-				String[] names = {"maclo", "machi", "machi2", "mulhi"};
-				long[] values = {0x11223344L, 0x55667788L, 0x99aabbccL, 0xdeadc0deL};
-				byte[][] instructions = new byte[sprs.length * 2][];
-				for (int i = 0; i < sprs.length; i++) {
-					instructions[i * 2] = sprImmediate(true, 3, sprs[i]);
-					instructions[i * 2 + 1] = sprImmediate(false, 4, sprs[i]);
+				b.createMemory("ram", CODE, 0x10000);
+				b.createMemory("spr", "spr:0", 0x200);
+				byte[][] instructions = new byte[192][];
+				for (int i = 0; i < 48; i++) {
+					int spr = 32 + i;
+					instructions[i * 2] = sprImmediate(true, 3, spr);
+					instructions[i * 2 + 1] = sprImmediate(false, 4, spr);
+					instructions[96 + i * 2] = sprRegister(true, 3, 5, 0);
+					instructions[96 + i * 2 + 1] = sprRegister(false, 3, 4, 0);
 				}
 				b.setBytes(CODE, concatenate(instructions));
 				EmulatorHelper emu = new EmulatorHelper(b.getProgram());
 				try {
 					emu.writeRegister("pc", 0x20000);
-					for (int i = 0; i < sprs.length; i++) {
-						emu.writeRegister("r3", values[i]);
-						assertTrue("mtspr " + names[i] + " failed for " + language,
+					for (int i = 0; i < 48; i++) {
+						long value = (0xA5000000L | (i * 0x10101L)) & 0xffffffffL;
+						emu.writeRegister("r3", value);
+						assertTrue("immediate mtspr index " + (32 + i) + " failed for " + language,
 							emu.step(TaskMonitor.DUMMY));
-						assertTrue("mfspr " + names[i] + " failed for " + language,
+						assertTrue("immediate mfspr index " + (32 + i) + " failed for " + language,
 							emu.step(TaskMonitor.DUMMY));
-						assertEquals("SPR readback " + names[i] + " for " + language,
-							values[i], emu.readRegister("r4").longValue() & 0xffffffffL);
-						assertEquals("named register " + names[i] + " for " + language,
-							values[i], emu.readRegister(names[i]).longValue() & 0xffffffffL);
+						assertEquals("immediate SPR readback index " + (32 + i) + " for " + language,
+							value, emu.readRegister("r4").longValue() & 0xffffffffL);
+						String bankName = i < 16 ? "epcr" + i : (i < 32 ? "eear" + (i - 16) : "esr" + (i - 32));
+						assertEquals("named SPR varnode " + bankName + " for " + language,
+							value, emu.readRegister(bankName).longValue() & 0xffffffffL);
+					}
+					for (int i = 0; i < 48; i++) {
+						long value = (0x5A000000L | (i * 0x10203L)) & 0xffffffffL;
+						emu.writeRegister("r3", 32 + i);
+						emu.writeRegister("r5", value);
+						assertTrue("register mtspr index " + (32 + i) + " failed for " + language,
+							emu.step(TaskMonitor.DUMMY));
+						assertTrue("register mfspr index " + (32 + i) + " failed for " + language,
+							emu.step(TaskMonitor.DUMMY));
+						assertEquals("register SPR readback index " + (32 + i) + " for " + language,
+							value, emu.readRegister("r4").longValue() & 0xffffffffL);
+						String bankName = i < 16 ? "epcr" + i : (i < 32 ? "eear" + (i - 16) : "esr" + (i - 32));
+						assertEquals("dynamic named SPR varnode " + bankName + " for " + language,
+							value, emu.readRegister(bankName).longValue() & 0xffffffffL);
 					}
 				}
 				finally {
@@ -416,6 +437,67 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 			finally {
 				b.dispose();
 			}
+		}
+	}
+
+	/** MStar MAC and AMAC SPRs are named architectural state for both SPR encodings. */
+	@Test
+	public void macAndAmacSprsAreNamedArchitecturalState() throws Exception {
+		for (String language : List.of(BE, LE, HARVARD)) {
+			ProgramBuilder b = new ProgramBuilder("aeon-mac-sprs", language, this);
+			try {
+				b.createMemory("ram", CODE, 0x1000);
+				b.createMemory("spr", "spr:0", 0xB000);
+				int[] sprs = {
+					0x2801, 0x2802, 0x2803, 0x2805, 0x2806, 0x2808,
+					0x2809, 0x280a, 0x280b, 0x280c, 0x280d, 0x280e,
+					0x2810, 0x2811, 0x2812, 0x2813, 0x2814,
+					0x2818, 0x2819, 0x281a, 0x281b, 0x281c
+				};
+				String[] names = {
+					"maclo", "machi", "machi2", "amacguard0", "amacguard1", "mulhi",
+					"amac0lo", "amac0hi", "amac1lo", "amac1hi", "amac_cfg", "amacstatus",
+					"amacq0", "amacq0_addrofs", "amacq0_stride", "amacq0_stride2", "amacq0_addrofs_stride",
+					"amacq1", "amacq1_addrofs", "amacq1_stride", "amacq1_stride2", "amacq1_addrofs_stride"
+				};
+				long[] values = {
+					0x11223344L, 0x55667788L, 0x99aabbccL, 0xa1a2a3a4L, 0xb1b2b3b4L, 0xdeadc0deL,
+					0x10203040L, 0x50607080L, 0x90a0b0c0L, 0xd0e0f001L, 1L, 0x00000001L,
+					0x01020304L, 0x11121314L, 0x21222324L, 0x31323334L, 0x41424344L,
+					0x51525354L, 0x61626364L, 0x71727374L, 0x81828384L, 0x91929394L
+				};
+				byte[][] instructions = new byte[sprs.length * 4][];
+				for (int i = 0; i < sprs.length; i++) {
+					instructions[i * 2] = sprImmediate(true, 3, sprs[i]);
+					instructions[i * 2 + 1] = sprImmediate(false, 4, sprs[i]);
+					instructions[sprs.length * 2 + i * 2] = sprRegister(true, 5, 3, 0);
+					instructions[sprs.length * 2 + i * 2 + 1] = sprRegister(false, 5, 4, 0);
+				}
+				b.setBytes(CODE, concatenate(instructions));
+				EmulatorHelper emu = new EmulatorHelper(b.getProgram());
+				try {
+					emu.writeRegister("pc", 0x20000);
+					for (int i = 0; i < sprs.length; i++) {
+						long value = values[i];
+						emu.writeRegister("r3", value);
+						assertTrue("immediate mtspr " + names[i] + " failed for " + language, emu.step(TaskMonitor.DUMMY));
+						assertTrue("immediate mfspr " + names[i] + " failed for " + language, emu.step(TaskMonitor.DUMMY));
+						assertEquals("immediate SPR readback " + names[i] + " for " + language, value, emu.readRegister("r4").longValue() & 0xffffffffL);
+						assertEquals("immediate named register " + names[i] + " for " + language, value, emu.readRegister(names[i]).longValue() & 0xffffffffL);
+					}
+					for (int i = 0; i < sprs.length; i++) {
+						long value = (values[i] ^ 0x0f0f0f0fL) & 0xffffffffL;
+						emu.writeRegister("r5", sprs[i]);
+						emu.writeRegister("r3", value);
+						assertTrue("register mtspr " + names[i] + " failed for " + language, emu.step(TaskMonitor.DUMMY));
+						assertTrue("register mfspr " + names[i] + " failed for " + language, emu.step(TaskMonitor.DUMMY));
+						assertEquals("register SPR readback " + names[i] + " for " + language, value, emu.readRegister("r4").longValue() & 0xffffffffL);
+						assertEquals("register named register " + names[i] + " for " + language, value, emu.readRegister(names[i]).longValue() & 0xffffffffL);
+					}
+				}
+				finally { emu.dispose(); }
+			}
+			finally { b.dispose(); }
 		}
 	}
 
@@ -540,6 +622,126 @@ public class AeonAddressAnalyzerTest extends AbstractGhidraHeadlessIntegrationTe
 				b.dispose();
 			}
 		}
+	}
+
+	private static byte[] sprRegister(boolean write, int sprRegister, int valueRegister, int offset) {
+		int opcode = write ? 0xD : 0xF;
+		int word = (0x30 << 26) | (valueRegister << 21) | (sprRegister << 16) |
+			((offset & 0xfff) << 4) | opcode;
+		return bytes((word >>> 24) & 0xff, (word >>> 16) & 0xff,
+			(word >>> 8) & 0xff, word & 0xff);
+	}
+
+	/** Whole-register SIMD bitwise instructions operate on 64-bit vector registers. */
+	@Test
+	public void vectorLogicalOperationsUseFull64BitRegisters() throws Exception {
+		BigInteger a = new BigInteger("fedcba9876543210", 16);
+		BigInteger b = new BigInteger("0ff00ff00ff00ff0", 16);
+		BigInteger mask = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE);
+		for (String language : List.of(BE, LE, HARVARD)) {
+			ProgramBuilder pb = new ProgramBuilder("aeon-vector-logic", language, this);
+			try {
+				pb.createMemory("ram", CODE, 0x1000);
+				pb.setBytes(CODE, concatenate(
+					vectorLogical(3, 1, 2, 2),  // mv.and v3,v1,v2
+					vectorLogical(4, 1, 2, 6),  // mv.or v4,v1,v2
+					vectorLogical(5, 1, 2, 14)  // mv.xor v5,v1,v2
+				));
+				EmulatorHelper emu = new EmulatorHelper(pb.getProgram());
+				try {
+					emu.writeRegister("v1", a);
+					emu.writeRegister("v2", b);
+					emu.writeRegister("pc", 0x20000);
+					for (int i = 0; i < 3; i++) {
+						assertTrue("vector logical instruction " + i + " failed for " + language,
+							emu.step(TaskMonitor.DUMMY));
+					}
+					assertEquals("64-bit vector AND for " + language, a.and(b), emu.readRegister("v3").and(mask));
+					assertEquals("64-bit vector OR for " + language, a.or(b), emu.readRegister("v4").and(mask));
+					assertEquals("64-bit vector XOR for " + language, a.xor(b), emu.readRegister("v5").and(mask));
+				}
+				finally { emu.dispose(); }
+			}
+			finally { pb.dispose(); }
+		}
+	}
+
+	/** Signed/unsigned word products and signed halfword products in the AMAC unit. */
+	@Test
+	public void macAccumulatorsImplementWordAndHalfwordProducts() throws Exception {
+		BigInteger mask64 = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE);
+		for (String language : List.of(BE, LE, HARVARD)) {
+			ProgramBuilder pb = new ProgramBuilder("aeon-mac-arithmetic", language, this);
+			try {
+				pb.createMemory("ram", CODE, 0x1000);
+				pb.setBytes(CODE, concatenate(
+					macInstruction(0, 3, 4, 0x48), macInstruction(0, 3, 4, 0x58),
+					macInstruction(0, 3, 4, 0x68),
+					macInstruction(1, 3, 4, 0x4f), macInstruction(1, 3, 4, 0x5f),
+					macInstruction(1, 3, 4, 0x6f),
+					macInstruction(1, 3, 4, 0x4e), macInstruction(1, 3, 4, 0x5e),
+					macInstruction(1, 3, 4, 0x6e),
+					macInstruction(0, 3, 4, 0x49), macInstruction(0, 3, 4, 0x59),
+					macInstruction(0, 3, 4, 0x69)
+				));
+				EmulatorHelper emu = new EmulatorHelper(pb.getProgram());
+				try {
+					emu.writeRegister("amac_cfg", 1L);
+					emu.writeRegister("pc", 0x20000);
+					emu.writeRegister("r3", 7L); emu.writeRegister("r4", -9L);
+					assertTrue(emu.step(TaskMonitor.DUMMY));
+					emu.writeRegister("r3", -11L); emu.writeRegister("r4", 13L);
+					assertTrue(emu.step(TaskMonitor.DUMMY));
+					emu.writeRegister("r3", 17L); emu.writeRegister("r4", 5L);
+					assertTrue(emu.step(TaskMonitor.DUMMY));
+					assertEquals(BigInteger.valueOf(-291).and(mask64),
+						readMacAccumulator(emu, "amac0lo", "amac0hi"));
+					emu.writeRegister("r3", 7L); emu.writeRegister("r4", 0x0000fffdL);
+					assertTrue(emu.step(TaskMonitor.DUMMY));
+					emu.writeRegister("r3", 2L); emu.writeRegister("r4", 0x0000fffcL);
+					assertTrue(emu.step(TaskMonitor.DUMMY));
+					emu.writeRegister("r3", -3L); emu.writeRegister("r4", 2L);
+					assertTrue(emu.step(TaskMonitor.DUMMY));
+					emu.writeRegister("r3", 5L); emu.writeRegister("r4", 0xfffe0000L);
+					assertTrue(emu.step(TaskMonitor.DUMMY));
+					emu.writeRegister("r3", 7L); emu.writeRegister("r4", 0x00030000L);
+					assertTrue(emu.step(TaskMonitor.DUMMY));
+					emu.writeRegister("r3", -4L); emu.writeRegister("r4", 0x00020000L);
+					assertTrue(emu.step(TaskMonitor.DUMMY));
+					assertEquals(BigInteger.valueOf(19), readMacAccumulator(emu, "amac1lo", "amac1hi"));
+					emu.writeRegister("r3", -1L); emu.writeRegister("r4", 2L);
+					assertTrue(emu.step(TaskMonitor.DUMMY));
+					emu.writeRegister("r3", 3L); emu.writeRegister("r4", 5L);
+					assertTrue(emu.step(TaskMonitor.DUMMY));
+					emu.writeRegister("r3", 2L); emu.writeRegister("r4", 3L);
+					assertTrue(emu.step(TaskMonitor.DUMMY));
+					assertEquals(new BigInteger("200000007", 16),
+						readMacAccumulator(emu, "amac0lo", "amac0hi").and(mask64));
+				}
+				finally { emu.dispose(); }
+			}
+			finally { pb.dispose(); }
+		}
+	}
+
+	private static byte[] macInstruction(int accumulator, int aRegister, int bRegister, int function) {
+		int word = (0x2f << 26) | (aRegister << 16) | (bRegister << 11) |
+			(accumulator << 7) | (function & 0x7f);
+		return bytes((word >>> 24) & 0xff, (word >>> 16) & 0xff,
+			(word >>> 8) & 0xff, word & 0xff);
+	}
+
+	private static BigInteger readMacAccumulator(EmulatorHelper emu, String low, String high) throws Exception {
+		BigInteger mask32 = BigInteger.ONE.shiftLeft(32).subtract(BigInteger.ONE);
+		return emu.readRegister(high).and(mask32).shiftLeft(32)
+			.or(emu.readRegister(low).and(mask32));
+	}
+
+	private static byte[] vectorLogical(int destination, int left, int right, int subOpcode) {
+		int word = (0x2c << 26) | (destination << 21) | (left << 16) |
+			(right << 11) | (subOpcode & 0x3f);
+		return bytes((word >>> 24) & 0xff, (word >>> 16) & 0xff,
+			(word >>> 8) & 0xff, word & 0xff);
 	}
 
 	private static byte[] sprImmediate(boolean write, int register, int spr) {

@@ -80,6 +80,8 @@ MStar divides SPR indices into 2,048-register groups:
 
 The MStar header explicitly names MACLO=0x2801, MACHI=0x2802 and MACHI2=0x2803; MStar exception context code preserves all three. The module gives them named architectural register state.
 
+The system group also defines three 16-entry exception banks: EPCR (SPR 32–47), EEAR (48–63) and ESR (64–79). These are named register varnodes and immediate/register-indexed SPR operations alias them directly. RFE uses EPCR0 and ESR0, so explicit SPR writes and exception return operate on the same state. This models the visible register bank, not the hardware that populates it on exception entry.
+
 MULHI=0x2808 is modeled separately because the independent Reko AEON implementation reads that SPR after 32×32-bit multiplies. It is not explicitly named by the public MStar header, so this remains an inference rather than an MStar-confirmed definition. See [architectural state details](architecture-state.md).
 
 Naming an SPR does not itself emulate side effects such as cache invalidation, interrupt delivery, timer progression or MMU translation.

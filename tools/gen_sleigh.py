@@ -114,11 +114,50 @@ def stack_return_semantics():
     return " ".join(out)
 
 
+def spr_access_semantics(write, immediate):
+    """Route architecturally named SPRs to real Ghidra register varnodes."""
+    n_expr = "{U}" if immediate else "{A} + {PIPE}"
+    operation = "write" if write else "read"
+    lines = [f"local n:4 = {n_expr};", "local addr:4 = n * 4;"]
+    named = [(17, "sr"), (10241, "maclo"), (10242, "machi"),
+             (10243, "machi2"), (10245, "amacguard0"), (10246, "amacguard1"),
+             (10248, "mulhi"),
+             (10249, "amac0lo"), (10250, "amac0hi"),
+             (10251, "amac1lo"), (10252, "amac1hi"),
+             (10253, "amac_cfg"), (10254, "amacstatus"),
+             (10256, "amacq0"), (10257, "amacq0_addrofs"),
+             (10258, "amacq0_stride"), (10259, "amacq0_stride2"),
+             (10260, "amacq0_addrofs_stride"),
+             (10264, "amacq1"), (10265, "amacq1_addrofs"),
+             (10266, "amacq1_stride"), (10267, "amacq1_stride2"),
+             (10268, "amacq1_addrofs_stride")]
+    for base, prefix in ((32, "epcr"), (48, "eear"), (64, "esr")):
+        named.extend((base + i, f"{prefix}{i}") for i in range(16))
+    for index, name in named:
+        lines.append(f"if (n == {index}:4) goto <{operation}_{name}>;")
+    if write:
+        lines.append("*[spr]:4 (addr) = {B}; goto <write_done>;")
+        for _, name in named:
+            lines.append(f"<write_{name}> {name} = {{B}}; goto <write_done>;")
+        lines.append("<write_done> local join:1 = 0;")
+    else:
+        lines.append("{Dw} = *[spr]:4 (addr); goto <read_done>;")
+        for _, name in named:
+            lines.append(f"<read_{name}> {{Dw}} = {name}; goto <read_done>;")
+        lines.append("<read_done> local join:1 = 0;")
+    return " ".join(lines)
+
+
 # ---------------------------------------------------------------- semantics --
 # Placeholders: {Xw} write form of register letter X, {X} read form (r0 reads
 # as 0), immediates by letter id. {next} = inst_next, {this} = inst_start.
 SEMANTICS = {
     # --- moves and arithmetic -------------------------------------------
+    # Whole-vector bitwise operations are defined across all 64 bits; they
+    # do not depend on lane width or signedness.
+    'mv.and':    '{Dw} = {A} & {B};',
+    'mv.or':     '{Dw} = {A} | {B};',
+    'mv.xor':    '{Dw} = {A} ^ {B};',
     # CY: measured in aeon-elf-sim (tools/simprobe.py). add/addi/sub write it,
     # addc/subb/addic take it in and write it out, and every other instruction
     # leaves it alone — so an addc after an add must see the add's carry.
@@ -302,13 +341,9 @@ SEMANTICS = {
     'bn.nop':    '',
     'bt.trap':   'aeon_trap({G}:4);',
     'bt.sys':    'aeon_syscall();',
-    # Measured in aeon-elf-sim: b.rfe jumps to the address in SPR 0x20, the
-    # OpenRISC EPCR. Writing a target there and stepping through the rfe lands
-    # on it exactly; SPR 0x30 has no effect.
-    # OpenRISC-compatible RFE: restore SR from ESR0 and return to EPCR0.
-    'bt.rfe':    ('local epcr_addr:4 = 0x80; local esr_addr:4 = 0x100; '
-                  'local epc:4 = *[spr]:4 (epcr_addr); '
-                  'local esr:4 = *[spr]:4 (esr_addr); sr = esr; return [epc];'),
+    # MStar defines 16-entry EPCR, EEAR and ESR exception banks in SPR 32..79.
+    # RFE restores the base exception status and returns through EPCR0.
+    'bt.rfe':    'sr = esr0; return [epcr0];',
     'bt.ei':     'aeon_enable_interrupts();',
     'bt.di':     'aeon_disable_interrupts();',
     'bt.wait':   'aeon_wait();',
@@ -316,58 +351,12 @@ SEMANTICS = {
     'bt.syncd':  'aeon_sync_dcache();',
     'bt.syncp':  'aeon_sync_pipeline();',
     'bg.syncwritebuffer': 'aeon_sync_write_buffer();',
-    # SPR n is addressed at spr:n*4. Model architecturally visible state
-    # as real registers so constant SPR accesses become data-flow references:
-    # SR (17), and the MStar MAC bank (0x2801..0x2803). MULHI (0x2808) is
-    # identified by the independent Reko AEON implementation.
-    'bg.mtspr':  ('local n:4 = {A} + {PIPE}; local addr:4 = n * 4; '
-                  'if (n == 17:4) goto <write_sr>; '
-                  'if (n == 10241:4) goto <write_maclo>; '
-                  'if (n == 10242:4) goto <write_machi>; '
-                  'if (n == 10243:4) goto <write_machi2>; '
-                  'if (n == 10248:4) goto <write_mulhi>; '
-                  '*[spr]:4 (addr) = {B}; goto <write_done>; '
-                  '<write_sr> sr = {B}; goto <write_done>; '
-                  '<write_maclo> maclo = {B}; goto <write_done>; '
-                  '<write_machi> machi = {B}; goto <write_done>; '
-                  '<write_machi2> machi2 = {B}; goto <write_done>; '
-                  '<write_mulhi> mulhi = {B}; <write_done> local join:1 = 0;'),
-    'bg.mfspr':  ('local n:4 = {A} + {PIPE}; local addr:4 = n * 4; '
-                  'if (n == 17:4) goto <read_sr>; '
-                  'if (n == 10241:4) goto <read_maclo>; '
-                  'if (n == 10242:4) goto <read_machi>; '
-                  'if (n == 10243:4) goto <read_machi2>; '
-                  'if (n == 10248:4) goto <read_mulhi>; '
-                  '{Dw} = *[spr]:4 (addr); goto <read_done>; '
-                  '<read_sr> {Dw} = sr; goto <read_done>; '
-                  '<read_maclo> {Dw} = maclo; goto <read_done>; '
-                  '<read_machi> {Dw} = machi; goto <read_done>; '
-                  '<read_machi2> {Dw} = machi2; goto <read_done>; '
-                  '<read_mulhi> {Dw} = mulhi; <read_done> local join:1 = 0;'),
-    'bg.mtspr1': ('local n:4 = {U}; local addr:4 = n * 4; '
-                  'if (n == 17:4) goto <write_sr>; '
-                  'if (n == 10241:4) goto <write_maclo>; '
-                  'if (n == 10242:4) goto <write_machi>; '
-                  'if (n == 10243:4) goto <write_machi2>; '
-                  'if (n == 10248:4) goto <write_mulhi>; '
-                  '*[spr]:4 (addr) = {B}; goto <write_done>; '
-                  '<write_sr> sr = {B}; goto <write_done>; '
-                  '<write_maclo> maclo = {B}; goto <write_done>; '
-                  '<write_machi> machi = {B}; goto <write_done>; '
-                  '<write_machi2> machi2 = {B}; goto <write_done>; '
-                  '<write_mulhi> mulhi = {B}; <write_done> local join:1 = 0;'),
-    'bg.mfspr1': ('local n:4 = {U}; local addr:4 = n * 4; '
-                  'if (n == 17:4) goto <read_sr>; '
-                  'if (n == 10241:4) goto <read_maclo>; '
-                  'if (n == 10242:4) goto <read_machi>; '
-                  'if (n == 10243:4) goto <read_machi2>; '
-                  'if (n == 10248:4) goto <read_mulhi>; '
-                  '{Dw} = *[spr]:4 (addr); goto <read_done>; '
-                  '<read_sr> {Dw} = sr; goto <read_done>; '
-                  '<read_maclo> {Dw} = maclo; goto <read_done>; '
-                  '<read_machi> {Dw} = machi; goto <read_done>; '
-                  '<read_machi2> {Dw} = machi2; goto <read_done>; '
-                  '<read_mulhi> {Dw} = mulhi; <read_done> local join:1 = 0;'),
+    # Named architectural SPRs become register data-flow references; unknown
+    # indices retain the generic indexed SPR-space behavior.
+    'bg.mtspr':  spr_access_semantics(True, False),
+    'bg.mfspr':  spr_access_semantics(False, False),
+    'bg.mtspr1': spr_access_semantics(True, True),
+    'bg.mfspr1': spr_access_semantics(False, True),
     # rD is hardwired to 0 here, and the simulator shows no architectural
     # effect, so this is a load whose result is discarded. Modelling it as a
     # load rather than a pseudo-op is what gives it a data reference.
@@ -405,6 +394,64 @@ SPLIT = {
     'bt.stack': [('f', 0, 'local off:4 = {F} * 4; *:4 (r1 + off) = {QM};'),
                  ('f', 1, 'local off:4 = {F} * 4; {QMw} = *:4 (r1 + off);')],
 }
+
+def mac_accumulator_semantics(name, mode, signedness, part, accumulator):
+    """Native 64-bit AMAC multiply/accumulate semantics for one accumulator."""
+    low = f"amac{accumulator}lo"
+    high = f"amac{accumulator}hi"
+    extend = "sext" if signedness == "signed" else "zext"
+    if part == "low16":
+        rhs = f"{extend}({{B}}[0,16])"
+    elif part == "high16":
+        rhs = f"{extend}({{B}}[16,16])"
+    else:
+        rhs = f"{extend}({{B}}:4)"
+    lhs = f"{extend}({{A}}:4)"
+    fallback = f"aeon_{name.split('.', 1)[1]}({{A}}, {{B}}, {accumulator}:4);"
+    if mode == "set":
+        update = f"{low} = product[0,32]; {high} = product[32,32];"
+    else:
+        operator = "+" if mode == "add" else "-"
+        update = (
+            f"local accumulator:8 = (zext({high}:4) << 32) | zext({low}:4); "
+            f"accumulator = accumulator {operator} product; "
+            f"{low} = accumulator[0,32]; {high} = accumulator[32,32];"
+        )
+    return (
+        "local cfg_half:4 = amac_cfg s/ 2:4; "
+        "local cfg_even:4 = cfg_half * 2:4; "
+        "if (cfg_even == amac_cfg) goto <mac_disabled>; "
+        f"local product:8 = {lhs} * {rhs}; "
+        f"{update} goto <mac_done>; "
+        f"<mac_disabled> {fallback} "
+        "<mac_done> local join:1 = 0;"
+    )
+
+MAC_OPERATIONS = {
+    'bg.amul': ["set","signed","word"],
+    'bg.amac': ["add","signed","word"],
+    'bg.amsb': ["sub","signed","word"],
+    'bg.amulu': ["set","unsigned","word"],
+    'bg.amacu': ["add","unsigned","word"],
+    'bg.amsbu': ["sub","unsigned","word"],
+    'bg.amul_lh': ["set","signed","low16"],
+    'bg.amac_lh': ["add","signed","low16"],
+    'bg.amsb_lh': ["sub","signed","low16"],
+    'bg.amul_hh': ["set","signed","high16"],
+    'bg.amac_hh': ["add","signed","high16"],
+    'bg.amsb_hh': ["sub","signed","high16"],
+}
+for _name, (_mode, _signedness, _part) in MAC_OPERATIONS.items():
+    # Decode accumulator a0/a1 in the instruction pattern. Reserved selectors
+    # retain the original opaque fallback constructor.
+    SPLIT[_name] = [
+        ('c', 0, mac_accumulator_semantics(_name, _mode, _signedness, _part, 0)),
+        ('c', 1, mac_accumulator_semantics(_name, _mode, _signedness, _part, 1)),
+        (None, None, None),
+    ]
+
+
+
 
 DEST_LETTERS = set('D?Z')
 
@@ -633,11 +680,19 @@ class Gen:
                 if letter is not None:
                     cons.append(f'{self.dup_field(enc, letter, pos[letter])}={value}')
                 elif name in SPLIT:
-                    # the general case must exclude the specific one
-                    sl, sv, _ = SPLIT[name][0]
-                    cons.append(f'{self.dup_field(enc, sl, pos[sl])}!={sv}')
+                    # Exclude all selector values that have native constructors.
+                    for sl, sv, _ in SPLIT[name]:
+                        if sl is not None:
+                            cons.append(f'{self.dup_field(enc, sl, pos[sl])}!={sv}')
+                # The AMAC selector is already fixed by the split pattern.
+                # Render the selected accumulator as a literal instead of
+                # reading the narrow selector field a second time in this constructor.
+                variant_disp = disp
+                if name in MAC_OPERATIONS and letter == 'c' and value in (0, 1):
+                    selector_field = symbols['c'][0]
+                    variant_disp = disp.replace(f'"a"^{selector_field}', f'"a{value}"')
                 binds = [d for d, _ in symbols.values()]
-                self.ctors.append(self.emit_ctor(name, mnem, disp, cons,
+                self.ctors.append(self.emit_ctor(name, mnem, variant_disp, cons,
                                                  extra + binds, symbols, sem,
                                                  op, order))
 
