@@ -98,7 +98,7 @@ for write in (False, True):
         output = route(write, immediate)
         direction = "write" if write else "read"
         generated_routes[direction] = output
-        emitted = re.findall(r"if \\(n == (\\d+):4\\) goto <" + direction + r"_([a-zA-Z0-9_]+)>;", output)
+        emitted = re.findall(r"if \(n == (\d+):4\) goto <" + direction + r"_([a-zA-Z0-9_]+)>;", output)
         emitted_indices = [int(index) for index, _ in emitted]
         if len(emitted_indices) != len(set(emitted_indices)):
             fail(f"{direction} route contains duplicate SPR comparisons")
