@@ -17,6 +17,9 @@ semantics are emitted as lane-local SLEIGH P-code, rather than opaque
 - Signed halfword absolute value (including the two's-complement
   `INT16_MIN` edge case)
 - Low/high byte unpack to zero-extended halfword lanes
+- Scalar extraction (signed/unsigned halfword and byte, plus low-word transfer)
+- Scalar-to-vector lane insertion, sign-bit mask extraction, and halfword broadcast
+- 64-bit byte concatenation and low/high 32-bit scalar insertion
 
 The operation formulas are based on the independent MStar SDK's AEON
 `__m64` compatibility routines. Those routines are evidence for intended
